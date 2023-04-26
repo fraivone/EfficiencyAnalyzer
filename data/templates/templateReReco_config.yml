@@ -1,0 +1,28 @@
+data_input:
+  folders: !!python/list [/eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/b_gemReReco_hv_re3_230213_023322_0000/230409_084453/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/b_gemReReco_hv_re2_230117_015414_0000/230409_105226/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/b_gemReReco_hv_re1_221221_060151_0000/230409_125826/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/_crab_gemReReco_hv_221121_231501_0000/230413_075331/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/_crab_gemReReco_hv_221121_231501_0001/230413_075415/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/_crab_gemReReco_hv_221121_231501_0002/230413_075423/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/_crab_gemReReco_hv_221121_231501_0003/230413_075434/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/_crab_gemReReco_hv_221121_231501_0004/230413_075451/0000/,
+                          /eos/cms/store/group/dpg_gem/comm_gem/P5_Commissioning/2022/GEMCommonNtuples/CRAB_UserFiles/_crab_gemReReco_hv_221121_231501_0005/230413_075503/0000/]
+  max_evts: !!python/int -1
+  HVMask_path: !!python/str 
+  runRange: !!python/list []
+parameters:
+  maxPropPhi_Err: !!python/float 0.005
+  maxPropR_Err: !!python/float 1
+  minpT: !!python/float 10
+  fiducialR: !!python/float 1
+  fiducialPhi: !!python/float 0.005
+  RangeChi2: !!python/list [0,99999999]
+  minME1: !!python/int 0
+  minME2: !!python/int 0
+  minME3: !!python/int 0
+  minME4: !!python/int 0
+matching_window:
+  residual_rdphi : !!python/float 0.5
+  residual_phi: !!python/float 0.0025
+analysis_label: !!python/str ""
