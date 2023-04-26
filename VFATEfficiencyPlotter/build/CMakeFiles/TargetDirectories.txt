@@ -1,7 +1,0 @@
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/install/strip.dir
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/install/local.dir
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/install.dir
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/list_install_components.dir
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/rebuild_cache.dir
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/edit_cache.dir
-/afs/cern.ch/user/f/fivone/Documents/Uproot/VFATEfficiencyPlotter/build/CMakeFiles/VFATEffPlotter.dir
