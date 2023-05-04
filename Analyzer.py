@@ -48,7 +48,7 @@ args = parser.parse_args()
 configuration = config(abspath(args.config))
 input_par = configuration.parameters
 matching_cuts = configuration.matching_window
-match_by = f"residual_rdphi"
+match_by = "residual_rdphi"
 output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
 output_name = configuration.analysis_label + time.strftime("_%-y%m%d%H%M")
 max_evts = configuration.data_input["max_evts"]
@@ -63,7 +63,7 @@ copy(EOS_INDEX_FILE, output_folder_path)
 ##
 
 avg_batch_size = 900  # MB
-heap_dump_size = 500  # MB above which efficiency summary gets calculated from propagated_collector and matched_collector and dumped to file
+heap_dump_size = 1000  # MB above which efficiency summary gets calculated from propagated_collector and matched_collector and dumped to file
 
 
 def main():
@@ -77,7 +77,7 @@ def main():
         if isfile(join(folder, file)) and "root" in file
     ]
     ### reRECO only
-    # with open(Path(BASE_DIR / "data/maps/file_name.json"), "r") as f:
+    # with open(Path(BASE_DIR / "data/maps/RunNumber_ReRECO_map.json"), "r") as f:
     #     RunNumber_Map = json.loads(f.read())
     # files = [f for f in files if runRange[0] in RunNumber_Map[f]]
     ### reRECO only
@@ -413,7 +413,7 @@ if __name__ == "__main__":
     start = time.time()
     df = EfficiencySummary(matched, prop)
     logger.info(f"Summary generated in {time.time()-start:.3f} s")
-    ExtendEfficiencyCSV(df, BASE_DIR / f"data/output/{output_name}.csv", index=False)
+    ExtendEfficiencyCSV(df, BASE_DIR / f"data/output/{output_name}.csv")
     configuration.dump_config(BASE_DIR / f"data/output/{output_name}.yml")
 
     if args.residuals:
