@@ -9,6 +9,9 @@ include_directories($ENV{ANALYSIS_HOME}/include)
 set(header $ENV{ANALYSIS_HOME}/include/*.h)
 
 add_executable(VFATEffPlotter VFATEffPlotter.cpp  ${headers})#${sources}
+add_executable(Hits_plotter Hits_plotter.cpp  ${headers})#${sources}
 target_link_libraries(VFATEffPlotter ${ROOT_LIBRARIES})
+target_link_libraries(Hits_plotter ${ROOT_LIBRARIES})
 
 install(TARGETS VFATEffPlotter DESTINATION bin)
+install(TARGETS Hits_plotter DESTINATION bin)
