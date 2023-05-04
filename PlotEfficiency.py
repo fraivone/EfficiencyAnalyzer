@@ -9,7 +9,7 @@ from Utils import generateClopperPearsonInterval, EOS_OUTPUT_PATH, EOS_INDEX_FIL
 from PlottingFunctions import axs_36chambersEff_style
 
 ##### General
-station = 1
+station = 1 ## GE11 only
 plt.rc("grid", linestyle="-.", color=(0.64, 0.64, 0.64))
 timestamp = time.strftime("%-y%m%d_%H%M")
 #####
