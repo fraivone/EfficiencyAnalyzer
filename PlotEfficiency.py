@@ -5,7 +5,8 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from shutil import copy
-from Utils import generateClopperPearsonInterval, EOS_OUTPUT_PATH, EOS_INDEX_FILE
+from Utils import EOS_OUTPUT_PATH, EOS_INDEX_FILE
+from Statistics import generateClopperPearsonInterval
 from PlottingFunctions import axs_36chambersEff_style
 
 ##### General
@@ -66,6 +67,7 @@ for index, file_path in enumerate(args.inputs):
             ],
             axis=1,
         )
+        
         temp_df["eff_upper_limit"] = temp_df.apply(
             lambda x: generateClopperPearsonInterval(x["matchedRecHit"], x["propHit"])[
                 1

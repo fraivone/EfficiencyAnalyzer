@@ -63,7 +63,7 @@ copy(EOS_INDEX_FILE, output_folder_path)
 ##
 
 avg_batch_size = 900  # MB
-heap_dump_size = 1000  # MB above which efficiency summary gets calculated from propagated_collector and matched_collector and dumped to file
+heap_dump_size = 500  # MB above which efficiency summary gets calculated from propagated_collector and matched_collector and dumped to file
 
 
 def main():
