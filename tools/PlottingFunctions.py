@@ -109,11 +109,19 @@ def plotArray_2D(
     normalization_factor=None,
 ):
     if mask is None:
-        plotting_x = ak.flatten(array[f"{x_field}"]).to_numpy()
-        plotting_y = ak.flatten(array[f"{y_field}"]).to_numpy()
+        if array[f"{x_field}"].layout.branch_depth[1] == 1: ## array is already flatten
+            plotting_x = array[f"{x_field}"].to_numpy()
+            plotting_y = array[f"{y_field}"].to_numpy()
+        else :
+            plotting_x = ak.flatten(array[f"{x_field}"]).to_numpy()
+            plotting_y = ak.flatten(array[f"{y_field}"]).to_numpy()
     else:
-        plotting_x = ak.flatten(array[f"{x_field}"][mask]).to_numpy()
-        plotting_y = ak.flatten(array[f"{y_field}"][mask]).to_numpy()
+        if array[f"{x_field}"].layout.branch_depth[1] == 1: ## array is already flatten
+            plotting_x = array[f"{x_field}"][mask].to_numpy()
+            plotting_y = array[f"{y_field}"][mask].to_numpy()
+        else:
+            plotting_x = ak.flatten(array[f"{x_field}"][mask]).to_numpy()
+            plotting_y = ak.flatten(array[f"{y_field}"][mask]).to_numpy()
 
     ax.set_title(title, fontweight="bold", size=24)
     ax.set_xlabel(xaxis_label, loc="right", size=20)
@@ -123,9 +131,9 @@ def plotArray_2D(
 
     H, xedges, yedges, im = ax.hist2d(plotting_x,plotting_y,bins=(int(x_lim[-1] - x_lim[0]), int(y_lim[-1] - y_lim[0])),cmap=color_map,range=np.array([(x_lim[0], x_lim[-1]), (y_lim[0], y_lim[-1])]))
     if normalization_factor is not None:
-        H_normalized = H / normalization_factor  # the max value of the histogrm is 1
+        H_normalized = H / normalization_factor  # the max value of the histogrm is entries/normalization_factor
         extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-        im = ax.imshow(H_normalized,extent=extent,cmap=color_map,interpolation="none",origin="lower")
+        im = ax.imshow(H_normalized,extent=extent,cmap=color_map,interpolation="none",origin="lower",vmin=0, vmax=100)
     ax.grid()
     return im
 
