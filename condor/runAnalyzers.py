@@ -50,8 +50,8 @@ def generateJobShell(name,absPath_config):
     return shell_script_name
 if __name__=='__main__':
     parser = argparse.ArgumentParser(
-        description='''Execute the chain Analyzer.py - PlotVFATStatus.py - PlotEfficiency.py - VFATEffPlotter on the CERN Batch Service (HTCondor)''',
-        epilog="""Typical exectuion (from this folder)\n\t  python runAnalyzer.py ../data/config/file1.yml ../data/config/file2.yml""",
+        description='''Executes the chain Analyzer.py - PlotVFATStatus.py - PlotEfficiency.py - VFATEffPlotter on the CERN Batch Service (HTCondor)''',
+        epilog="""Typical exectuion (from this folder)\n\t  python runAnalyzers.py ../data/config/file1.yml ../data/config/file2.yml""",
         formatter_class=RawTextHelpFormatter
         )
     parser.add_argument('config', help='Analysis description file', nargs="*")
