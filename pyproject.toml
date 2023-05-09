@@ -9,9 +9,9 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
-awkward = "2.0.0"
+awkward = "2.1.4"
 matplotlib = "3.5.2"
-numpy = "1.21.1"
+numpy = "1.22.4"
 seaborn = "0.11.2"
 uproot = "5.0.0"
 guppy3 = "^3.1.2"
