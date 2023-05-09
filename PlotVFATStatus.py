@@ -42,7 +42,7 @@ input_par = configuration.parameters
 output_name = configuration.analysis_label+time.strftime("_%-y%m%d%H%M")
 max_evts = configuration.data_input["max_evts"]
 runRange = sorted(configuration.data_input["runRange"])
-avg_batch_size = 10000 # MB
+avg_batch_size = 100000 # MB
 
 plt.rc('grid', linestyle='-.', color='lightgrey')
 def main():
@@ -85,13 +85,15 @@ def main():
         gemOHStatus = gemOHStatus[runNumber_mask]
         event = event[runNumber_mask]
         heap_size(the_heap,"after filtering on run number")
+        print(gemOHStatus[gemOHStatus["gemOHStatus_VFATMissing"]!=0]["gemOHStatus_VFATMissing"])
 
         gemOHStatus["gemOHStatus_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock,gemOHStatus["gemOHStatus_station"])[0]       
 
-        mask = (gemOHStatus.gemOHStatus_errors != 0) | (gemOHStatus.gemOHStatus_warnings != 0)
+        mask = (gemOHStatus.gemOHStatus_errors != 0) 
         logger.info(f"unpacking VFAT status")
         for VFAT_number in range(24):
             gemOHStatus[f"vfat{VFAT_number}_masked"] = np.logical_not((gemOHStatus.gemOHStatus_VFATMasked>>VFAT_number) & 0b1)
+            gemOHStatus[f"vfat{VFAT_number}_missing"] = (gemOHStatus.gemOHStatus_VFATMissing>>VFAT_number) & 0b1
             # gemOHStatus[f"vfat{VFAT_number}_ZS"] = (gemOHStatus.gemOHStatus_VFATZS>>VFAT_number) & 0b1
             mask = mask | (gemOHStatus[f"vfat{VFAT_number}_masked"] == True)
         heap_size(the_heap,"after unpacking status")
@@ -107,7 +109,10 @@ def main():
         axs_error = axs_error.flatten()
         fig_vfatMasked, axs_masked = plt.subplots(2,2,figsize=(39,20),layout="constrained")
         axs_masked = axs_masked.flatten()
-        img = [None,None,None,None]
+        img_masked = [None,None,None,None]
+        fig_vfatMissing, axs_missing = plt.subplots(2,2,figsize=(39,20),layout="constrained")
+        axs_missing = axs_missing.flatten()
+        img_missing = [None,None,None,None]
        
         station = 1
         max_lumiblock = ak.max(gemOHStatus.gemOHStatus_lumiblock)+1
@@ -150,31 +155,47 @@ def main():
             plotArray_2D(gemOHStatus, endcapMask & (gemOHStatus.gemOHStatus_warnings >0), "gemOHStatus_lumiblock", "gemOHStatus_chamber", (min_lumiblock,max_lumiblock), (0.5,36.5), np.arange(min_lumiblock,max_lumiblock, 50, dtype=float), np.arange(1,37, 1, dtype=float), f"GE{'+' if region>0 else '-'}{station}1 Ly{layer} Warnings", "Lumiblock", "Chamber", plt.cm.Blues, axs_warning[idx])
             plotArray_2D(gemOHStatus, endcapMask & (gemOHStatus.gemOHStatus_errors >0), "gemOHStatus_lumiblock", "gemOHStatus_chamber", (min_lumiblock,max_lumiblock), (0.5,36.5), np.arange(min_lumiblock,max_lumiblock, 50, dtype=float), np.arange(1,37, 1, dtype=float), f"GE{'+' if region>0 else '-'}{station}1 Ly{layer} Errors", "Lumiblock", "Chamber", plt.cm.Reds, axs_error[idx])
             
-            # VFAT Masked
-            plotting_data = {"Chamber":np.empty(0,dtype=int),"VFAT":np.empty(0,dtype=int)}
+            # VFAT Masked / Missing
+            plotting_data_masked = {"Chamber":np.empty(0,dtype=int),"VFAT":np.empty(0,dtype=int)}
+            plotting_data_missing = {"Chamber":np.empty(0,dtype=int),"VFAT":np.empty(0,dtype=int)}
             for vfat in range(24):
                 mask = (gemOHStatus[f"vfat{vfat}_masked"] == True) & endcapMask
+                ## Getting vfat masked data
                 temp_sel = gemOHStatus[mask]
                 temp_sel["VFAT"] = ak.broadcast_arrays(vfat,temp_sel.gemOHStatus_chamber)[0]
-                plotting_data["Chamber"] = np.append(plotting_data["Chamber"],ak.flatten(temp_sel.gemOHStatus_chamber))
-                plotting_data["VFAT"] = np.append(plotting_data["VFAT"],ak.flatten(ak.broadcast_arrays(vfat,temp_sel.gemOHStatus_chamber)[0]))
+                plotting_data_masked["Chamber"] = np.append(plotting_data_masked["Chamber"],ak.flatten(temp_sel.gemOHStatus_chamber))
+                plotting_data_masked["VFAT"] = np.append(plotting_data_masked["VFAT"],ak.flatten(ak.broadcast_arrays(vfat,temp_sel.gemOHStatus_chamber)[0]))
+                
+                ## Getting vfat missing data
+                mask = (gemOHStatus[f"vfat{vfat}_missing"] == True) & endcapMask
+                temp_sel = gemOHStatus[mask]
+                temp_sel["VFAT"] = ak.broadcast_arrays(vfat,temp_sel.gemOHStatus_chamber)[0]
+                plotting_data_missing["Chamber"] = np.append(plotting_data_missing["Chamber"],ak.flatten(temp_sel.gemOHStatus_chamber))
+                plotting_data_missing["VFAT"] = np.append(plotting_data_missing["VFAT"],ak.flatten(ak.broadcast_arrays(vfat,temp_sel.gemOHStatus_chamber)[0]))
             
-            img[idx] = plotArray_2D(plotting_data, None, "Chamber", "VFAT", (0.5,36.5), (-0.5,23.5), np.arange(1,37, 1, dtype=float), np.arange(0,24, 1, dtype=float), f"GE{'+' if region>0 else '-'}{station}1 Ly{layer} VFAT Masked", "Chamber", "VFAT", plt.cm.Reds, axs_masked[idx],normalization_factor=total_events/100)
-            color_bar = fig_vfatMasked.colorbar(img[idx], ax=axs_masked[idx], pad=0.01)
+            img_masked[idx] = plotArray_2D(plotting_data_masked, None, "Chamber", "VFAT", (0.5,36.5), (-0.5,23.5), np.arange(1,37, 1, dtype=float), np.arange(0,24, 1, dtype=float), f"GE{'+' if region>0 else '-'}{station}1 Ly{layer} VFAT Masked", "Chamber", "VFAT", plt.cm.Reds, axs_masked[idx],normalization_factor=total_events/100)
+            color_bar = fig_vfatMasked.colorbar(img_masked[idx], ax=axs_masked[idx], pad=0.01)
             color_bar.ax.text(2.7,0.4,"% event masked",rotation=90,fontsize=20)
+            
+            img_missing[idx] = plotArray_2D(plotting_data_missing, None, "Chamber", "VFAT", (0.5,36.5), (-0.5,23.5), np.arange(1,37, 1, dtype=float), np.arange(0,24, 1, dtype=float), f"GE{'+' if region>0 else '-'}{station}1 Ly{layer} VFAT Missing", "Chamber", "VFAT", plt.cm.Greys, axs_missing[idx],normalization_factor=total_events/100)   
+            color_bar = fig_vfatMissing.colorbar(img_missing[idx], ax=axs_missing[idx], pad=0.01)
+            color_bar.ax.text(2.7,0.4,"% event vfat missing",rotation=90,fontsize=20)
             
         heap_size(the_heap,"after plotting")            
         logger.debug(f" Plotting took {time.time()-start:.2f} s")
+        logger.debug(f" Now saving plots...")
         
         fig_hasstatus.savefig(Path(output_folder_path,f"{output_name}_HasStatus.png"),dpi=200)
         fig_warning.savefig(Path(output_folder_path,f"{output_name}_Warnings.png"),dpi=200)
         fig_error.savefig(Path(output_folder_path,f"{output_name}_Errors.png"),dpi=200)
         fig_vfatMasked.savefig(Path(output_folder_path,f"{output_name}_VFATMasked.png"),dpi=200)
+        fig_vfatMissing.savefig(Path(output_folder_path,f"{output_name}_VFATMissing.png"),dpi=200)
         
         fig_hasstatus.savefig(Path(output_folder_path,f"{output_name}_HasStatus.pdf"))
         fig_warning.savefig(Path(output_folder_path,f"{output_name}_Warnings.pdf"))
         fig_error.savefig(Path(output_folder_path,f"{output_name}_Errors.pdf"))
         fig_vfatMasked.savefig(Path(output_folder_path,f"{output_name}_VFATMasked.pdf"))
+        fig_vfatMissing.savefig(Path(output_folder_path,f"{output_name}_VFATMissing.pdf"))
         
         break
         
