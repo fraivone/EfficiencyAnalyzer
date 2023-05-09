@@ -55,7 +55,7 @@ def aggregateHitsVFAT(array):
             layer = array[evt_idx].mu_propagated_layer[hits_idx]
             vfat = array[evt_idx].mu_propagated_VFAT[hits_idx]
 
-            collector[(st - 1, re, ch - 1, layer - 1, vfat - 1)] += 1
+            collector[(st - 1, re, ch - 1, layer - 1, vfat)] += 1
 
     return collector
 
