@@ -71,17 +71,18 @@ def calcDAQMaskedVFAT_mask(gemPropHit,gemOHStatus):
     Here it is important to use gemPropHit as first item of the product and use the option nested=True. 
     In such way the output will be something like
 
-    array[event_index][<prop or oh label>][ array n_rows x n_column] 
+    array[event_index][<prop or oh label>][ array n_rows x m_column] 
 
     n_rows == number of propagated hits in the event
-    n_column == number of gemOHStatus chambers
+    m_column == number of gemOHStatus chambers
 
-    STEP2: check what whether the prophit belongs to a DAQ masked VFAT
+    STEP2: check whether the prophit belongs to a DAQ masked VFAT
     filter based on condition
     (
     OHstation == PropHitstation  & 
     conditionOHregion == PropHitregion & 
     conditionOHchamber == PropHitchamber & 
+    conditionOHLayer == PropHitLayer & 
     PropHitVFAT was masked
     )
     VFAT is masked if the bitword VFAT Mask has the nth bit == 0, where n is the propHit VFAT number
