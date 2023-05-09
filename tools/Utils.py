@@ -2,10 +2,10 @@ import awkward as ak
 import numpy as np
 import numba
 import pandas as pd
-from scipy.stats import beta
 from myLogger import logger as default_logger
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
+from Statistics import generateClopperPearsonInterval
 
 EOS_OUTPUT_PATH = Path("/eos/user/f/fivone/www/P5_Operations/Run3/")
 BASE_DIR = Path(__file__).parent.parent
@@ -16,23 +16,11 @@ logger = default_logger.getLogger(__name__)
 logger.setLevel(default_logger.MEMORY)  # type: ignore
 
 
+
 def heap_size(the_hp, label: str) -> None:
     thp = the_hp.heap()
     logger.memory(f"Heap Size {label}: {thp.size/2**20:.3f} MB")  # type: ignore
     # print(thp.byvia[0:3])
-
-
-def generateClopperPearsonInterval(num: int, den: int) -> Tuple[float, float]:
-    confidenceLevel = 0.68
-    alpha = 1 - confidenceLevel
-
-    if num == 0: lowerLimit = 0
-    else: lowerLimit = beta.ppf(alpha / 2, num, den - num + 1)
-
-    if num == den: upperLimit = 0
-    else: upperLimit = beta.ppf(1 - alpha / 2, num + 1, den - num)
-
-    return float(lowerLimit), float(upperLimit)
 
 
 ## given iEta,iPhi having the same structure, returns VFAT number with consistent structure (i.e. int,int --> int  ; array,array --> array)
@@ -118,4 +106,8 @@ def ExtendEfficiencyCSV(new_df: pd.DataFrame, existing_csv_path: Path) -> None:
 
 
 if __name__ == "__main__":
+    print(f"438V: 2196 discharges for 5 propagations\t{generateClopperPearsonInterval(5,2196)}")
+    print(f"500V: 686 discharges for 0 propagations\t{generateClopperPearsonInterval(0,686)}")
+    print(f"550V: 2132 discharges for 112 propagations\t{generateClopperPearsonInterval(112,2132)}")
+    print(f"600V: 269 discharges for 6 propagations\t{generateClopperPearsonInterval(6,269)}")
     pass
