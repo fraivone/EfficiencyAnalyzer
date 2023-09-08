@@ -7,7 +7,24 @@ from pathlib import Path
 from shutil import copy
 from Utils import EOS_OUTPUT_PATH, EOS_INDEX_FILE
 from Statistics import generateClopperPearsonInterval
-from PlottingFunctions import axs_36chambersEff_style
+from PlottingFunctions import axs_8etasEff_style
+
+
+def VFAT2iEta_iPhi(VFATN):
+    try:
+        vfatPosition = int(VFATN)
+    except:
+        print("VFAT Number provided is not a number.\nExiting...")
+        sys.exit(0)
+
+    if vfatPosition <0 or vfatPosition>23:
+        print("Invalid VFAT position.\nExiting...")
+        sys.exit(0)
+
+    iEta = (8 - vfatPosition%8)
+    iPhi = vfatPosition//8
+    return iEta #iPhi
+
 
 ##### General
 station = 1 ## GE11 only
@@ -33,7 +50,7 @@ args = parser.parse_args()
 output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
 label_list = args.labels if args.labels is not None else args.inputs
 color = plt.cm.rainbow(np.linspace(0, 1, len(label_list)))
-
+print(output_folder_path)
 if len(label_list) != len(args.inputs):
     print("Parsed inputs and labels are different in number...\nExiting ..")
     sys.exit(0)
@@ -50,8 +67,11 @@ axs_efficiency = axs_efficiency.flatten()
 for index, file_path in enumerate(args.inputs):
     df = pd.read_csv(file_path, sep=",")
     df = df[df["propHit"] != 0]
+    df['etaPartition'] = df.apply(lambda x: VFAT2iEta_iPhi(x['VFAT']), axis=1)
+    print(file_path)
     for idx, (region, layer) in enumerate([(-1, 1), (1, 1), (-1, 2), (1, 2)]):
         temp_df = df[(df.Station == 1) & (df.Region == region) & (df.Layer == layer)]
+        print(temp_df)
         aggregation_functions = {
             "Station": "first",
             "Region": "first",
@@ -59,8 +79,9 @@ for index, file_path in enumerate(args.inputs):
             "Chamber": "first",
             "matchedRecHit": "sum",
             "propHit": "sum",
+            "etaPartition": "first"
         }
-        temp_df = temp_df.groupby(df["Chamber"]).aggregate(aggregation_functions)
+        temp_df = temp_df.groupby(df["etaPartition"]).aggregate(aggregation_functions)
         temp_df["eff_lower_limit"] = temp_df.apply(
             lambda x: generateClopperPearsonInterval(x["matchedRecHit"], x["propHit"])[
                 0
@@ -81,7 +102,7 @@ for index, file_path in enumerate(args.inputs):
         temp_df["eff_up_error"] = temp_df["eff_upper_limit"] - temp_df["avg_eff"]
 
         axs_efficiency[idx].bar(
-            temp_df["Chamber"],
+            temp_df["etaPartition"],
             temp_df["eff_upper_limit"] - temp_df["eff_lower_limit"],
             bottom=temp_df["eff_lower_limit"],
             width=0.5,
@@ -92,7 +113,7 @@ for index, file_path in enumerate(args.inputs):
             alpha=0.5,
         )
         axs_efficiency[idx].errorbar(
-            temp_df["Chamber"],
+            temp_df["etaPartition"],
             temp_df["avg_eff"],
             yerr=[temp_df["eff_low_error"], temp_df["eff_up_error"]],
             ecolor=color[index],
@@ -105,6 +126,6 @@ for index, file_path in enumerate(args.inputs):
             size=24,
         )
 
-axs_efficiency = np.array(list(map(axs_36chambersEff_style, axs_efficiency)))
+axs_efficiency = np.array(list(map(axs_8etasEff_style, axs_efficiency)))
 fig_efficiency.savefig(Path(output_folder_path, f"Eff_{timestamp}.png"), dpi=200)
 fig_efficiency.savefig(Path(output_folder_path, f"Eff_{timestamp}.pdf"))
