@@ -5,6 +5,7 @@ from os import system
 from os.path import abspath
 from config_parser import config
 from pathlib import Path
+import time
 
 def generateSubFile(outputName,shell_name):
     job_flavour = "tomorrow"
@@ -22,9 +23,12 @@ def generateSubFile(outputName,shell_name):
         sout.write("queue"+"\n")
     return SubfileName
 
-def generateJobShell(name,absPath_config):
-    main_command = f"python Analyzer.py {absPath_config}"    
-    main_command = main_command + " \n"
+def generateJobShell(name,absPath_config, folder_name, residuals, timestamp):
+    
+    main_command = f"python Analyzer.py {absPath_config} --folder_name {folder_name}  --timestamp {timestamp}"    
+    if residuals: main_command = main_command + " --residuals \n"
+    else: main_command = main_command + " \n"
+    print(main_command)
 
     shell_script_name = Path(BASE_DIR / f"condor/JobFiles/job_Run_{name}.sh")
     print(shell_script_name)
@@ -42,7 +46,7 @@ def generateJobShell(name,absPath_config):
         # fout.write("source /cvmfs/sft.cern.ch/lcg/app/releases/ROOT/6.18.04/x86_64-centos7-gcc48-opt/bin/thisroot.sh"+"\n")
         # activate poetry venv
         # fout.write("source /opt/rh/rh-python38/enable "+"\n")
-        fout.write("source /afs/cern.ch/user/f/fivone/.cache/pypoetry/virtualenvs/pfa-columnar-analyzer-5YpECzXB-py3.9/bin/activate"+"\n")
+        fout.write("source /afs/cern.ch/user/f/fivone/.cache/pypoetry/virtualenvs/pfa-columnar-analyzer-5YpECzXB-py3.8/bin/activate"+"\n")
         ## Run the same job interval number of time
         fout.write("ClusterId=$1\n")
         fout.write("ProcId=$2\n")
@@ -51,20 +55,23 @@ def generateJobShell(name,absPath_config):
 if __name__=='__main__':
     parser = argparse.ArgumentParser(
         description='''Executes the chain Analyzer.py - PlotVFATStatus.py - PlotEfficiency.py - VFATEffPlotter on the CERN Batch Service (HTCondor)''',
-        epilog="""Typical exectuion (from this folder)\n\t  python runAnalyzers.py ../data/config/file1.yml ../data/config/file2.yml""",
+        epilog="""Typical exectuion (from this folder)\n\t  python runAnalyzers.py ../data/config/367758_RPCMonitor_690uA_n200.yml    --folder_name 367758 --residuals --timestamp 2306131040""",
         formatter_class=RawTextHelpFormatter
         )
-    parser.add_argument('config', help='Analysis description file', nargs="*")
+    parser.add_argument('config', help='Analysis description file', nargs=1)
+    parser.add_argument("--folder_name", type=str, help="Output folder name", required=False, default="test")
+    parser.add_argument("--residuals", help="Enable plotting residuals", required=False, action="store_true", default=False)
+    parser.add_argument("--timestamp", type=str, help="label for unique analysis results", required=False, default=time.strftime("_%-y%m%d%H%M"))
     args = parser.parse_args()
     config_list = args.config
-    
+
     for filename in config_list:
         abspath_config = abspath(filename)
         configuration = config(abspath_config)
 
-        shell_name = generateJobShell(configuration.analysis_label,abspath_config)
+        shell_name = generateJobShell(configuration.analysis_label,abspath_config, args.folder_name, args.residuals, args.timestamp)
         SubfileName = generateSubFile(configuration.analysis_label,shell_name)
-        condorDAG_file = Path(BASE_DIR / f"condor/condor_DAG/condor_DAG_{configuration.analysis_label}.dag")
+        condorDAG_file = Path(BASE_DIR / f"condor/condor_DAG/condor_DAG_{configuration.analysis_label}{args.timestamp}.dag")
 
         with open(condorDAG_file, "w") as DAG_file:
             DAG_file.write(
