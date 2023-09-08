@@ -26,8 +26,9 @@ gStyle->SetNumberContours(NContours);
 
 int main(int argc, char* argv[]) {
 	 if (argc != 3){
-		std::cout<<"Exepcted arguments: <csv_path> <output_folder_name>\nExiting\n\n"<<std::endl;
+		std::cout<<"Exepcted arguments: <csv_path> <output_folder_name>"<<std::endl;
         std::cout<<"Where <output_folder_name> gets appended to /eos/user/f/fivone/www/P5_Operations/Run3/"<<std::endl;
+        std::cout<<"\nExiting\n\n"<<std::endl;
 		return 0;
 	 }
 	std::string csv_path = argv[1];
