@@ -61,6 +61,7 @@ output_name = configuration.analysis_label + analysis_timestamp
 max_evts = configuration.data_input["max_evts"]
 runRange = sorted(configuration.data_input["runRange"])
 ## PARSER
+
 ## CREATE FOLDERS and COPY FILES
 output_folder_path.mkdir(parents=True, exist_ok=True)
 copy(EOS_INDEX_FILE, output_folder_path)
@@ -68,10 +69,6 @@ if args.residuals:
     residual_output_folder_path = Path(output_folder_path, f"Residuals{analysis_timestamp}")
     residual_output_folder_path.mkdir(parents=True, exist_ok=True)
     copy(EOS_INDEX_FILE, residual_output_folder_path)
-
-DAQStatus_output_folder_path = Path(output_folder_path,"DAQStatus")
-DAQStatus_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,DAQStatus_output_folder_path)
 
 TrackQuality_output_folder_path = Path(output_folder_path,f"TrackQuality{analysis_timestamp}")
 TrackQuality_output_folder_path.mkdir(parents=True, exist_ok=True)
@@ -259,7 +256,7 @@ def main():
         etaID_boundaries_akarray_pre = ak.Array(map(find_boundaries, gemPropHit.prop_etaID))
         heap_size(the_heap, "arraying etaP boundaries")
 
-        logger.debug(f" Extrapolating onto VFATs")
+        logger.debug(f" Adding propHit VFAT")
         # GE11 approach to VFAT extrapolation
         gemPropHit["prophit_cosine"] = gemPropHit.mu_propagatedLoc_x / gemPropHit.mu_propagatedGlb_r
         gemPropHit["mu_propagated_phiP"] = (
@@ -280,12 +277,16 @@ def main():
         # gemRecHit["gemRecHit_VFAT"] = (11 - ((gemRecHit.gemRecHit_firstClusterStrip+gemRecHit.gemRecHit_cluster_size/2)//64)) - ((gemRecHit.gemRecHit_etaPartition - 1)%4)//2
         heap_size(the_heap, "after extrapolating on VFATs")
 
+        
+        
+        """
+        in CMSSW angles are defined in the [-pi,pi] range.
+        PhiMin > PhiMax happens for chambers 19 where phiMin = 174 degrees phiMax = -174.
+        here the fix.
+        find which boundaries have phiMin > phiMAx (index 1 corresponds to phiMin, 0 to phiMax)
+        """
         logger.debug(f" Calculating masks")
         logger.debug2(f" Adjusting for angle periodicity")
-        # in CMSSW angles are defined in the [-pi,pi] range.
-        # PhiMin > PhiMax happens for chambers 19 where phiMin = 174 degrees phiMax = -174.
-        # here the fix.
-        ## find which boundaries have phiMin > phiMAx (index 1 corresponds to phiMin, 0 to phiMax)
         boundary_translation_mask = etaID_boundaries_akarray_pre[..., 1] > etaID_boundaries_akarray_pre[..., 0]
         ## Generate translation array. For every entry in mask, generate a boundary translation array
         ## mask is True --> translate by [2 pi , 0 , 0, 0]
@@ -293,12 +294,6 @@ def main():
         ## Then add the aforementioned array of translation arrays to etaID_boundaries_akarray
         translation_array = ak.Array(map(boundaries_translation, boundary_translation_mask))
         etaID_boundaries_akarray = etaID_boundaries_akarray_pre + translation_array
-
-
-        specificChamber = gemPropHit[(gemPropHit.mu_propagated_chamber == 11) & (gemPropHit.mu_propagated_region == -1)]
-        specificChamber = specificChamber[ak.num(specificChamber.mu_propagated_chamber)!=0]
-        hist_on_central_VFATs = ak.sum((specificChamber.mu_propagated_VFAT>=8) & (specificChamber.mu_propagated_VFAT<16))
-        print(f"Found {hist_on_central_VFATs} on central VFATs on SuperCH 11 -- NO Cuts")
 
         """
         Since some boundaries phiMax have been translated by 0,2pi , to consistently apply the mask 
@@ -432,7 +427,7 @@ def main():
         best_matches = best_match(compatibleHitsArray, match_by)
         accepted_hits = best_matches[best_matches[match_by] < matching_cuts[match_by]]
         accepted_hits = accepted_hits[ak.num(accepted_hits.prop_etaID, axis=-1) > 0]
-        heap_size(the_heap, "after selection based on residuals")
+        heap_size(the_heap, " selection based on residuals")
 
         matched_collector = (ak.concatenate([matched_collector, accepted_hits]) if matched_collector is not None else accepted_hits)
         propagated_collector = (ak.concatenate([propagated_collector, selectedPropHit]) if propagated_collector is not None else selectedPropHit)
