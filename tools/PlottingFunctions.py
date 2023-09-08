@@ -1,11 +1,14 @@
 import awkward as ak
 import numpy as np
+import numba
 from numba import jit, int32, int64, float64
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
+from dataclasses import dataclass
+from typing import List
+import pandas as pd
 
-
-@jit(float64[:](int64[:], int64), cache=True, nopython=True)
+@jit(float64[:](float64[:], int64), cache=True, nopython=True)
 def get_bin_edges(a, bins):
     bin_edges = np.zeros((bins + 1,), dtype=np.float64)
     a_min = a.min()
@@ -70,73 +73,96 @@ def Fill_Histo_Residuals(compatible_hits_array, hist_range, nbins):
     return hist_data, bin_edges
 
 
-def Plot_Binned_Residuals(histogram_data, bin_edges, output_folder):
+def Store_Binned_Residuals(histogram_data, bin_edges, output_folder,output_name_prefix="",enable_plot=False):
+    RMS = {}
     x = (bin_edges[1:] + bin_edges[:-1]) / 2
-    bin_width = round(bin_edges[1] - bin_edges[0], 2)
+    bin_width = round(bin_edges[1] - bin_edges[0], 4)
     fig, ax = plt.subplots(1, figsize=(10, 10), layout="constrained")
     for st in [0]:
         for region in [0, 1]:
             for chamber in range(36):
                 for layer in range(2):
-                    name = f"GE11-{'P' if region==1 else 'M'}-{chamber+1:02d}L{layer+1}"
-                    ax.hist(x,weights=histogram_data[st, region, chamber, layer, :],bins=bin_edges,alpha=0.5,color="g")
-                    avg = sum([x[i] * histogram_data[st, region, chamber, layer, i] for i in range(len(x))]) / len(x)
-                    ax.set_title(f"{name} residuals", fontweight="bold", size=24)
-                    ax.set_xlabel(r"Residual R$\Delta$$\phi$ (cm)", loc="right", size=20)
-                    ax.set_ylabel(f"Entries/{bin_width}cm", loc="center", size=20)
-                    ax.text(0.2,0.95,f"Entries: {sum(histogram_data[st,region,chamber,layer,:])}\nAVG {avg:.2f}\nAVG",transform=ax.transAxes,fontsize=20,fontweight="bold",va="top")
-                    ax.grid()
-                    fig.savefig(f"{output_folder}/{name}.png")
-                    print(f"Plotted chamber {name}")
-                    ax.cla()
+                    name = f"GE11-{'P' if region==1 else 'M'}-{chamber+1:02d}L{layer+1}"                        
+                    entries = sum(histogram_data[st,region,chamber,layer,:])
+                    if entries != 0:
+                        avg = sum([x[i] * histogram_data[st, region, chamber, layer, i] for i in range(len(x))]) / entries
+                        rms = np.sqrt(sum([ (x[i]**2) * histogram_data[st, region, chamber, layer, i] for i in range(len(x))]) / entries)
+                    else:
+                        avg = 0
+                        rms = 0
+                    RMS[name] = rms
+                    if enable_plot:
+                        ax.hist(x,weights=histogram_data[st, region, chamber, layer, :],bins=bin_edges,alpha=0.5,color="g")
+                        ax.set_title(f"{name} residuals", fontweight="bold", size=24)
+                        ax.set_xlabel(r"R$\Delta$$\phi$ (cm)", loc="right", size=20)
+                        ax.set_ylabel(f"Entries/{bin_width}cm", loc="center", size=20)
+                        ax.text(0.2,0.95,f"Entries: {entries}\nAVG {avg:.2f}\nRMS {rms:.2f}",transform=ax.transAxes,fontsize=20,fontweight="bold",va="top")
+                        ax.grid()
+                        fig.savefig(f"{output_folder}/{output_name_prefix}{name}.png")
+                        # print(f"Plotted chamber {name}")
+                        ax.cla()
+                    np.savetxt(f"{output_folder}/{output_name_prefix}{name}_hist.txt", histogram_data[st, region, chamber, layer, :], delimiter=",")
+    df = pd.DataFrame(RMS,index=[0])
+    df.to_csv(f"{output_folder}/{output_name_prefix}ResidualsRMS.txt", index=False)
+    
     return ax
 
 
-def plotArray_2D(
-    array,
-    mask,
-    x_field,
-    y_field,
-    x_lim,
-    y_lim,
-    x_ticks,
-    y_ticks,
-    title,
-    xaxis_label,
-    yaxis_label,
-    color_map,
-    ax,
-    normalization_factor=None,
-):
-    if mask is None:
-        if array[f"{x_field}"].layout.branch_depth[1] == 1: ## array is already flatten
-            plotting_x = array[f"{x_field}"].to_numpy()
-            plotting_y = array[f"{y_field}"].to_numpy()
-        else :
-            plotting_x = ak.flatten(array[f"{x_field}"]).to_numpy()
-            plotting_y = ak.flatten(array[f"{y_field}"]).to_numpy()
-    else:
-        if array[f"{x_field}"].layout.branch_depth[1] == 1: ## array is already flatten
-            plotting_x = array[f"{x_field}"][mask].to_numpy()
-            plotting_y = array[f"{y_field}"][mask].to_numpy()
+
+@dataclass
+class ArrayOfRecords_HistogramBins:
+    x_low_lim: float
+    x_high_lim: float
+    y_low_lim: float
+    y_high_lim: float
+    fields: List[str]
+    ArrayOfRecords = None
+    _bins = None
+    _range = None
+    _base_array = None
+
+    def __post_init__(self):
+        self._base_array =  np.zeros(( 1, # stations
+                                       2, # regions
+                                       2, # layers
+                                       int(self.x_high_lim - self.x_low_lim),  # UDF (usually x axis of the final plot)
+                                       int(self.y_high_lim - self.y_low_lim)), # UDF (usually y axis of the final plot)
+                                       dtype=np.int32)
+        ## Array of records has as fields self.fields, as array _base_array
+        self.ArrayOfRecords = ak.zip({k: v for k, v in zip(self.fields, [self._base_array for k in self.fields])})
+        self._bins = (int(self.x_high_lim - self.x_low_lim), int(self.y_high_lim-self.y_low_lim))
+        self._range = np.array([(self.x_low_lim, self.x_high_lim), (self.y_low_lim, self.y_high_lim)])
+
+    def AddEntriesFromBinCounts(self,field: str,array: np.ndarray):
+        if array.shape == self.ArrayOfRecords[field].to_numpy().shape:
+            sum_result = np.add(self.ArrayOfRecords[field].to_numpy(), array.astype(np.int32), casting="unsafe")
+            self.ArrayOfRecords[field] = sum_result
         else:
-            plotting_x = ak.flatten(array[f"{x_field}"][mask]).to_numpy()
-            plotting_y = ak.flatten(array[f"{y_field}"][mask]).to_numpy()
+            raise ValueError(f"Parsed array has shape {array.shape} non-addable to {self.__repr__()} of shape {self.ArrayOfRecords[field].to_numpy().shape} ")
 
-    ax.set_title(title, fontweight="bold", size=24)
-    ax.set_xlabel(xaxis_label, loc="right", size=20)
-    ax.set_ylabel(yaxis_label, loc="center", size=20)
-    ax.set_xticks(x_ticks)
-    ax.set_yticks(y_ticks)
+    def plot(self,field,x_ticks,y_ticks,xaxis_label,yaxis_label,color_map,ax,normalization_factor=None):
+        station = 1 ## GE11 only
+        for idx, (region,layer) in enumerate([(-1,1),(1,1),(-1,2),(1,2)]):
+            plot_content = self.ArrayOfRecords[field][station - 1, (region+1)//2, layer -1]
+            title = f"GE{'+' if region>0 else '-'}{station}1 Ly{layer} {field}"
+            ax[idx].set_title(title, fontweight="bold", size=24)
+            ax[idx].set_xlabel(xaxis_label, loc="right", size=20)
+            ax[idx].set_ylabel(yaxis_label, loc="center", size=20)
+            ax[idx].set_xticks(x_ticks)
+            ax[idx].set_yticks(y_ticks)
+            if normalization_factor is not None:
+                plot_content = plot_content*normalization_factor
+            im = ax[idx].imshow(( plot_content.to_numpy()).T, 
+                         origin='lower', 
+                         aspect="auto",
+                         interpolation="none",
+                         extent=[self.x_low_lim, self.x_high_lim, self.y_low_lim, self.y_high_lim], 
+                                cmap=color_map,vmin = ak.min(plot_content), vmax = ak.max(plot_content))  
+            ax[idx].grid()
+        return im
 
-    H, xedges, yedges, im = ax.hist2d(plotting_x,plotting_y,bins=(int(x_lim[-1] - x_lim[0]), int(y_lim[-1] - y_lim[0])),cmap=color_map,range=np.array([(x_lim[0], x_lim[-1]), (y_lim[0], y_lim[-1])]))
-    if normalization_factor is not None:
-        H_normalized = H / normalization_factor  # the max value of the histogrm is entries/normalization_factor
-        extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-        im = ax.imshow(H_normalized,extent=extent,cmap=color_map,interpolation="none",origin="lower",vmin=0, vmax=100)
-    ax.grid()
-    return im
-
+    def __getitem__(self, key):
+        return self.ArrayOfRecords[key]
 
 def axs_36chambersEff_style(axs):
     axs.legend(loc="lower left", prop={"size": 20})
@@ -154,3 +180,65 @@ def axs_36chambersEff_style(axs):
     # Gridlines based on minor ticks
     axs.grid(which="major")
     return axs
+
+
+def axs_8etasEff_style(axs):
+    axs.legend(loc="lower left", prop={"size": 20})
+    axs.set_xlabel("etaPartition", loc="right", size=20)
+    axs.set_ylabel("Muon Efficiency", loc="center", size=20)
+    # Major ticks
+    axs.set_xticks(np.arange(1, 9, 1))
+    axs.set_yticks(np.arange(0.6, 1.2, 0.2))
+    # Labels for major ticks
+    axs.set_xticklabels(np.arange(1, 9, 1), size=15)
+    axs.set_yticklabels(np.arange(0.6, 1.2, 0.2), size=15)
+    axs.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    # Minor ticks
+    axs.set_xticks(np.arange(0.5, 9.5, 1), minor=True)
+    # Gridlines based on minor ticks
+    axs.grid(which="major")
+    return axs
+
+
+@numba.jit(cache=True, nopython=True)
+def unpackVFATStatus_toBin(gemOHStatus,hist_bins):
+    VFATMasked = hist_bins.copy()
+    VFATMissing = hist_bins.copy()
+    VFATZSd = hist_bins.copy()
+    for evt_idx in range(len(gemOHStatus)):
+        for status_idx in range(len(gemOHStatus[evt_idx].gemOHStatus_chamber)):
+            st = gemOHStatus[evt_idx].gemOHStatus_station[status_idx]
+            re = (gemOHStatus[evt_idx].gemOHStatus_region[status_idx] + 1) // 2  ## transforming -1 -> 0, 1 -> 1 to respect the indexing
+            ch = gemOHStatus[evt_idx].gemOHStatus_chamber[status_idx]
+            layer = gemOHStatus[evt_idx].gemOHStatus_layer[status_idx]
+            for vfat in range(24):
+                VFATMasked[(st - 1, re, layer - 1, ch - 1, vfat)] += np.logical_not((gemOHStatus[evt_idx].gemOHStatus_VFATMasked[status_idx]>>vfat) & 0b1)
+                VFATMissing[(st - 1, re, layer - 1, ch - 1, vfat)] += (gemOHStatus[evt_idx].gemOHStatus_VFATMissing[status_idx]>>vfat) & 0b1
+                VFATZSd[(st - 1, re, layer - 1, ch - 1, vfat)] += (gemOHStatus[evt_idx].gemOHStatus_VFATZS[status_idx]>>vfat) & 0b1
+    return VFATMasked,VFATMissing,VFATZSd
+
+@numba.jit(cache=True, nopython=True)
+def OHStatus_toBin(gemOHStatus,hist_bins):
+    OHHasStatus = hist_bins.copy()
+    OHErrors = hist_bins.copy()
+    OHWarnings = hist_bins.copy()
+    for evt_idx in range(len(gemOHStatus)):
+        for status_idx in range(len(gemOHStatus[evt_idx].gemOHStatus_chamber)):
+            st = gemOHStatus[evt_idx].gemOHStatus_station[status_idx]
+            re = (gemOHStatus[evt_idx].gemOHStatus_region[status_idx] + 1) // 2  ## transforming -1 -> 0, 1 -> 1 to respect the indexing
+            ch = gemOHStatus[evt_idx].gemOHStatus_chamber[status_idx]
+            layer = gemOHStatus[evt_idx].gemOHStatus_layer[status_idx]
+            lumiblock = gemOHStatus[evt_idx].gemOHStatus_lumiblock[status_idx]
+            
+            OHHasStatus[(st - 1, re, layer - 1, lumiblock, ch-1)] += 1
+            if gemOHStatus[evt_idx].gemOHStatus_errors[status_idx] > 0:
+                OHErrors[(st - 1, re, layer - 1, lumiblock, ch-1)] += 1
+            if gemOHStatus[evt_idx].gemOHStatus_warnings[status_idx] > 0:
+                OHWarnings[(st - 1, re, layer - 1, lumiblock, ch-1)] += 1
+
+    return OHHasStatus,OHErrors,OHWarnings
+
+
+if __name__=='__main__':
+    k = ArrayOfRecords_HistogramBins(0,20,0,30, ["A","B"])
+    print(k.ArrayOfRecords["A"].type)

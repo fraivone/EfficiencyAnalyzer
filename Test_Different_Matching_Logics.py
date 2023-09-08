@@ -47,6 +47,7 @@ parser = argparse.ArgumentParser(description="Analyzer parser")
 parser.add_argument("config", help="Analysis description file")
 parser.add_argument("--folder_name", type=str, help="Output folder name", required=False, default="test")
 parser.add_argument("--residuals", help="Enable plotting residuals", required=False, action="store_true", default=False)
+parser.add_argument("--test", help="Test run", required=False, action="store_true", default=False)
 parser.add_argument("--timestamp", type=str, help="label for unique analysis results", required=False, default=time.strftime("_%-y%m%d%H%M"))
 args = parser.parse_args()
 
@@ -94,7 +95,7 @@ TrackQualitySize_output_folder_path.mkdir(parents=True, exist_ok=True)
 copy(EOS_INDEX_FILE,TrackQualitySize_output_folder_path)
 ##
 
-avg_batch_size = 600 # MB
+avg_batch_size = 600 if args.test == False else 600 # MB
 heap_dump_size = 500  # MB above which efficiency summary gets calculated from propagated_collector and matched_collector and dumped to file
 total_events = 0
 
@@ -118,6 +119,8 @@ def main():
     propagated_collector = None
     compatible_collector = None
     cutSummary_collector = {}
+    selected_prop_perEvent = []
+    selected_rech_perEvent = []
 
     files_per_batch = math.ceil((avg_batch_size * 2 ** (20)) / AVG_FileSize)
     batches = [files[x : x + files_per_batch] for x in range(0, len(files), files_per_batch)]
@@ -293,13 +296,6 @@ def main():
         ## Then add the aforementioned array of translation arrays to etaID_boundaries_akarray
         translation_array = ak.Array(map(boundaries_translation, boundary_translation_mask))
         etaID_boundaries_akarray = etaID_boundaries_akarray_pre + translation_array
-
-
-        specificChamber = gemPropHit[(gemPropHit.mu_propagated_chamber == 11) & (gemPropHit.mu_propagated_region == -1)]
-        specificChamber = specificChamber[ak.num(specificChamber.mu_propagated_chamber)!=0]
-        hist_on_central_VFATs = ak.sum((specificChamber.mu_propagated_VFAT>=8) & (specificChamber.mu_propagated_VFAT<16))
-        print(f"Found {hist_on_central_VFATs} on central VFATs on SuperCH 11 -- NO Cuts")
-
         """
         Since some boundaries phiMax have been translated by 0,2pi , to consistently apply the mask 
         the same has to be done on mu_propagatedGlb_phi. The operation will then be inverted after
@@ -313,7 +309,7 @@ def main():
         input_par["gemprophit_array"] = gemPropHit
         input_par["etaID_boundaries_array"] = etaID_boundaries_akarray
         muonTrack_mask = calcMuonHit_masks(**input_par)
-        
+
         logger.debug2(f" Restoring angle periodicity")
         gemPropHit["mu_propagatedGlb_phi"] = gemPropHit.mu_propagatedGlb_phi - propGlbPhi_translation_mask * 2 * np.pi
 
@@ -340,6 +336,7 @@ def main():
         muonTrack_mask["DAQenabledOH"] = DAQenabledOH_mask
         muonTrack_mask["overallGood_Mask"] = muonTrack_mask["overallGood_Mask"] & DAQenabledOH_mask
         heap_size(the_heap, "after calculating DAQ enabled OH")
+
         logger.debug(f" Calculating HV selection mask")
         if HVmask_path is not None:
             HV_mask = calcHV_mask(gemPropHit, HVmask_path)
@@ -375,18 +372,28 @@ def main():
         # Matching propHits and recHits belonging to the SAME evt and in the same etapartitionID
         logger.debug(f" Pairing etaID")
         ## how many times the prophit's eventnumber matches the rechit's eventnumber
-        evtHasRechits = ak.num(selectedRecHit.rec_eventNumber)>0
-        syncd_events = ak.sum(ak.any(selectedPropHit[evtHasRechits].prop_eventNumber[..., 0] == selectedRecHit[evtHasRechits].rec_eventNumber,axis=-1))
-        n_valid_events = ak.sum(evtHasRechits)
-        if syncd_events != n_valid_events:
+        syncd_events = ak.sum(ak.any(selectedPropHit.prop_eventNumber[..., 0] == selectedRecHit.rec_eventNumber,axis=-1))
+        total_prophit = ak.sum(ak.num(selectedPropHit.prop_etaID), axis=-1)
+        if syncd_events != len(selectedPropHit):
             logger.error(
-                f"PropHit and RecHit have mismatches on eventNumber.\nN of valid events = {n_valid_events}\t Rechit with same evt number = {syncd_events}"
+                f"PropHit and RecHit have mismatches on eventNumber.\nTotal prophit = {total_prophit}\t Rechit with same evt number = {syncd_events}"
             )
+        selected_prop_perEvent.append(ak.to_list(ak.num(selectedPropHit.prop_etaID)))
+        selected_rech_perEvent.append(ak.to_list(ak.num(selectedRecHit.rec_etaID)))
 
         ## all possible pairs of (propHit,recHit) for each event
         product = ak.cartesian({"prop": selectedPropHit.prop_etaID, "rec": selectedRecHit.rec_etaID})
         cartesian_indeces = ak.argcartesian({"prop": selectedPropHit.prop_etaID, "rec": selectedRecHit.rec_etaID})
-
+        
+        ## Compatible Combinations: propHit,recHit in a pair have the same etaID
+        # matchable_event_mask = product["prop"] == product["rec"]
+        # matchable_prop_idx, matchable_rec_idx = ak.unzip(cartesian_indeces[matchable_event_mask])
+        
+        ## Compatible combinations: proprHit and rechit have the same layer, region, station 
+        matchable_event_mask = ((product["prop"] & 2**6-1) == (product["rec"] & 2**6-1)) & ((product["prop"]>>11) != (product["rec"]>> 11)) 
+        matchable_prop_idx, matchable_rec_idx = ak.unzip(cartesian_indeces[matchable_event_mask])
+        
+        
         ## For dumping events only
         #my_gemPropHit = selectedPropHit[ (selectedPropHit.mu_propagated_station == 1) & (selectedPropHit.mu_propagated_region == -1) &(selectedPropHit.mu_propagated_chamber == 10) & (selectedPropHit.mu_propagated_layer == 2) ]
         #useful_events = ak.num(my_gemPropHit.mu_propagated_chamber)!=0
@@ -400,9 +407,7 @@ def main():
         #for evt in range(len(my_gemPropHit)):
             #print(f"{my_gemPropHit[evt].prop_eventNumber}\t{my_gemPropHit[evt].mu_propagated_VFAT}\t{my_gemPropHit[evt].mu_propagated_lumiblock}")
         
-        ## Compatible Combinations: propHit,recHit in a pair have the same etaID
-        matchable_event_mask = product["prop"] == product["rec"]
-        matchable_prop_idx, matchable_rec_idx = ak.unzip(cartesian_indeces[matchable_event_mask])
+        
         ## Crating an ak.array that contains all compatible hits
         ## Due to the cartesian product each prophit gets duplicated as many times as there are compatible rechits
         ## Example: evt 10 has prop_etaID = [1,2,60], rec_etaID = [1,1,1,1,1,60,60]
@@ -420,12 +425,13 @@ def main():
         ## fixing it
         # angle_translation_rec = (((compatibleHitsArray.mu_propagatedGlb_phi - compatibleHitsArray.gemRecHit_g_phi) > 5) * 2 * np.pi)
         # angle_translation_prop = (((compatibleHitsArray.mu_propagatedGlb_phi - compatibleHitsArray.gemRecHit_g_phi) < -5) * 2 * np.pi)
-        #compatibleHitsArray["gemRecHit_g_phi"] = compatibleHitsArray["gemRecHit_g_phi"] + angle_translation_rec
-        #compatibleHitsArray["mu_propagatedGlb_phi"] = (compatibleHitsArray["mu_propagatedGlb_phi"] + angle_translation_prop)
+        # compatibleHitsArray["gemRecHit_g_phi"] = compatibleHitsArray["gemRecHit_g_phi"] + angle_translation_rec
+        # compatibleHitsArray["mu_propagatedGlb_phi"] = (compatibleHitsArray["mu_propagatedGlb_phi"] + angle_translation_prop)
 
         ## Residual Calc
-        compatibleHitsArray["residual_phi"] = (compatibleHitsArray.mu_propagatedGlb_phi - compatibleHitsArray.gemRecHit_g_phi)
-        compatibleHitsArray["residual_rdphi"] = (compatibleHitsArray.mu_propagatedGlb_phi - compatibleHitsArray.gemRecHit_g_phi) * compatibleHitsArray.mu_propagatedGlb_r
+        offset_angle = (compatibleHitsArray.gemRecHit_chamber - compatibleHitsArray.mu_propagated_chamber)  * np.pi/18
+        compatibleHitsArray["residual_phi"] = (compatibleHitsArray.mu_propagatedLoc_x - compatibleHitsArray.gemRecHit_loc_x)
+        compatibleHitsArray["residual_rdphi"] = (compatibleHitsArray.mu_propagatedGlb_phi - compatibleHitsArray.gemRecHit_g_phi + offset_angle) * compatibleHitsArray.mu_propagatedGlb_r
         heap_size(the_heap, "calculating residuals")
 
         logger.debug(f" Cut on residuals for efficiency")
@@ -438,7 +444,7 @@ def main():
         propagated_collector = (ak.concatenate([propagated_collector, selectedPropHit]) if propagated_collector is not None else selectedPropHit)
         compatible_collector = (ak.concatenate([compatible_collector, best_matches]) if compatible_collector is not None else best_matches)
 
-        logger.debug2(f"Number of good prophits: {len(selectedPropHit)}")
+        logger.debug2(f"Number of good prophits: {total_prophit}")
         logger.debug2(f"Number of cartesian prophits (contains duplicates): {ak.sum(ak.num(compatibleHitsArray.mu_propagatedGlb_phi,axis=-1))}")
         logger.debug2(f"Number of matched prophits: {ak.sum(ak.num(accepted_hits.prop_etaID,axis=-1))}")
         logger.debug(f" matched collector {ak.sum(ak.num(matched_collector.prop_etaID,axis=-1))}")
@@ -458,7 +464,7 @@ def main():
             if the_heap.heap().size / 2**20 > heap_dump_size:
                 logger.error(f"After dumping the collectors heap size is still > {heap_dump_size}")
 
-        if batch_index == 0: break
+        if args.test == True and batch_index == 2: break
 
     if matched_collector is not None and propagated_collector is not None:
         logger.info(f"AVG Efficiency: {ak.sum(ak.num(matched_collector.prop_etaID,axis=-1))}/{ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))} = {ak.sum(ak.count(matched_collector.prop_etaID,axis=-1))/ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))}")
@@ -469,262 +475,49 @@ def main():
     for k in cutSummary_collector:
         logger.info(f"{k:<20}\t{cutSummary_collector[k]:>15}\t{round(cutSummary_collector[k]*100/cutSummary_collector['no_Mask'],2):>19}%")
     print()
-    return matched_collector, propagated_collector, compatible_collector
+    return matched_collector, propagated_collector, compatible_collector, selected_prop_perEvent, selected_rech_perEvent
 
 if __name__ == "__main__":
-    matched, prop, compatible_collector = main()
-
-    compatible_collector["ImpactAngle"] = np.arccos(np.sqrt(compatible_collector["mu_propagatedLoc_dirX"]**2 + compatible_collector["mu_propagatedLoc_dirY"]**2))*180/np.pi
-    ## SAVE CSV WITH RESIDUALS
-    # mydf = ak.to_dataframe(compatible_collector)
-    # mydf.to_csv(f"{residual_output_folder_path}/test.csv")
-
-    """ ## PLOT DISTRIBUTION MARCELLO
-    core_residual = 0.5
-    fig_res, axs_res = plt.subplots(1, 2, figsize=(10, 10))
-    fig_ly, axs_ly = plt.subplots(1, 2, figsize=(10, 10))
-    fig_ratio = plt.figure(figsize=(10, 8))
-    compatible_collector_core  =  compatible_collector[(compatible_collector[match_by] < core_residual) & (compatible_collector[match_by] > -core_residual)]
-    compatible_collector_tails = compatible_collector[(compatible_collector[match_by] < -core_residual) | (compatible_collector[match_by] > core_residual)]
-    compatible_collector_L1  =  compatible_collector[compatible_collector["mu_propagated_layer"] == 1]
-    compatible_collector_L2 = compatible_collector[compatible_collector["mu_propagated_layer"] == 2]
-    compatible_collector_positive  =  compatible_collector[compatible_collector["mu_propagated_charge"] == 1]
-    compatible_collector_negative = compatible_collector[compatible_collector["mu_propagated_charge"] == -1]
-    compatible_collector_short  =  compatible_collector[compatible_collector["mu_propagated_chamber"] %2 == 1]
-    compatible_collector_long = compatible_collector[compatible_collector["mu_propagated_chamber"] %2 == 0]
-    for k in [match_by, "mu_propagated_nSTAHits",  "mu_propagated_nME1hits", "mu_propagated_nME2hits", "mu_propagated_nME3hits", "mu_propagated_nME4hits", "mu_propagated_isRPC", "mu_propagated_TrackNormChi2", "mu_propagated_pt", "mu_propagatedGlb_errR", "mu_propagatedGlb_errPhi", "mu_propagated_layer", "mu_propagated_etaP", "mu_propagated_region", "gemRecHit_cluster_size","mu_propagated_charge","ImpactAngle","mu_propagatedLoc_dirY","mu_propagatedLoc_dirX"]:
-        
-        min_x_tails = ak.min(compatible_collector_tails[k])
-        min_x_core = ak.min(compatible_collector_core[k])
-        max_x_tails = min(ak.max(compatible_collector_tails[k]), 500)
-        max_x_core = min(ak.max(compatible_collector_core[k]), 500)
-        
-        min_x_L1 = ak.min(compatible_collector_L1[k])
-        min_x_L2 = ak.min(compatible_collector_L2[k])
-        max_x_L1 = min(ak.max(compatible_collector_L1[k]), 500)
-        max_x_L2 = min(ak.max(compatible_collector_L2[k]), 500)
-        
-        min_x_pos = ak.min(compatible_collector_positive[k])
-        min_x_neg = ak.min(compatible_collector_negative[k])
-        max_x_pos = min(ak.max(compatible_collector_positive[k]), 500)
-        max_x_neg = min(ak.max(compatible_collector_negative[k]), 500)
-        
-        min_x_long = ak.min(compatible_collector_long[k])
-        min_x_short = ak.min(compatible_collector_short[k])
-        max_x_long = min(ak.max(compatible_collector_long[k]), 500)
-        max_x_short = min(ak.max(compatible_collector_short[k]), 500)
-        
-        if int(min_x_tails) - min_x_tails == 0 and int(min_x_core) - min_x_core == 0 and int(max_x_tails) - max_x_tails == 0  and int(max_x_core) - max_x_core == 0:
-            discrete_distr = True
-        else: discrete_distr = False
-        
-        
-        min_x_res = min(min_x_tails,min_x_core) if k != match_by else -5 ## common min
-        max_x_res = min(max_x_tails,max_x_core) if k != match_by else 5  ## common max
-        min_x_ly = min(min_x_L1,min_x_L2) if k != match_by else -5 ## common min
-        max_x_ly = min(max_x_L1,max_x_L2) if k != match_by else 5  ## common max
-        min_x_chrg = min(min_x_neg,min_x_pos) if k != match_by else -5 ## common min
-        max_x_chrg = min(max_x_neg,max_x_pos) if k != match_by else 5  ## common max
-        min_x_size = min(min_x_short,min_x_long) if k != match_by else -5 ## common min
-        max_x_size = min(max_x_long,max_x_short) if k != match_by else 5  ## common max
-
-        if discrete_distr:
-            min_x_res = min_x_res - 1 ## reducing by 1.5
-            min_x_ly = min_x_ly - 1 ## reducing by 1.5
-            min_x_chrg = min_x_chrg - 1 ## reducing by 1.5
-            min_x_size = min_x_size - 1 ## reducing by 1.5
-            max_x_res = max_x_res + 1 ## increasing by 1.5
-            max_x_ly = max_x_ly + 1 ## increasing by 1.5
-            max_x_chrg = max_x_chrg + 1 ## increasing by 1.5
-            max_x_size = max_x_size + 1 ## increasing by 1.5
-            
-            nbins_res = int(max_x_res - min_x_res)
-            nbins_ly = int(max_x_ly - min_x_ly)
-            nbins_chrg = int(max_x_chrg - min_x_chrg)
-            nbins_size = int(max_x_size - min_x_size)
-        else:
-            min_x_res = min_x_res - min_x_res*0.1 ## reducing by 10%
-            min_x_chrg = min_x_chrg - min_x_chrg*0.1 ## reducing by 10%
-            min_x_ly = min_x_ly - min_x_ly*0.1 ## reducing by 10%
-            min_x_size = min_x_size - min_x_size*0.1 ## reducing by 10%
-            max_x_res = max_x_res + max_x_res*0.1 ## increasing by 10%
-            max_x_ly = max_x_ly + max_x_ly*0.1 ## increasing by 10%
-            max_x_chrg = max_x_chrg + max_x_chrg*0.1 ## increasing by 10%
-            max_x_size = max_x_size + max_x_size*0.1 ## increasing by 10%
-
-            nbins_res = 100
-            nbins_ly = 100
-            nbins_chrg = 100
-            nbins_size = 100
-        logger.debug(f"Plotting histogram for {k}")    
-        
-        
-        h_core = hist.Hist(hist.axis.Regular(nbins_res, min_x_res, max_x_res, label=f"Core {k}")).fill( ak.flatten(compatible_collector_core[k]))
-        h_tails = hist.Hist(hist.axis.Regular(nbins_res, min_x_res, max_x_res, label=f"Tails {k}")).fill( ak.flatten(compatible_collector_tails[k]))
-        h_L1 = hist.Hist(hist.axis.Regular(nbins_ly, min_x_ly, max_x_ly, label=f"Ly1 {k}")).fill( ak.flatten(compatible_collector_L1[k]))
-        h_L2 = hist.Hist(hist.axis.Regular(nbins_ly, min_x_ly, max_x_ly, label=f"Ly2 {k}")).fill( ak.flatten(compatible_collector_L2[k]))
-        h_pos = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_positive[k]))
-        h_neg = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_negative[k]))
-        h_long = hist.Hist(hist.axis.Regular(nbins_size, min_x_size, max_x_size, label=f"{k}")).fill( ak.flatten(compatible_collector_long[k]))
-        h_short = hist.Hist(hist.axis.Regular(nbins_size, min_x_size, max_x_size, label=f"{k}")).fill( ak.flatten(compatible_collector_short[k]))
-
-        if k != match_by:
-            
-            main_ax_artists, sublot_ax_arists = h_core.plot_ratio(
-                h_tails,
-                rp_ylabel=r"Ratio Core / Tails",
-                rp_num_label="Core",
-                rp_denom_label="Tails",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityResidual_output_folder_path}/TailCore_Ratio_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityResidual_output_folder_path}/TailCore_Ratio_{k}.pdf")
-            fig_ratio.clear()
-
-        
-        if k != "mu_propagated_layer":
-            main_ax_artists, sublot_ax_arists = h_L1.plot_ratio(
-                h_L2,
-                rp_ylabel=r"Ratio Ly 1 / Ly 2",
-                rp_num_label="Layer1",
-                rp_denom_label="Layer2",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityLayer_output_folder_path}/Layer_Ratio_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityLayer_output_folder_path}/Layer_Ratio_{k}.pdf")
-            fig_ratio.clear()
-        if k != "mu_propagated_charge":
-            main_ax_artists, sublot_ax_arists = h_neg.plot_ratio(
-                h_pos,
-                rp_ylabel=r"Ratio NegaMuon / PosiMuon",
-                rp_num_label="NegaMuon",
-                rp_denom_label="PosiMuon",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/Charge_Ratio_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/Charge_Ratio_{k}.pdf")
-            fig_ratio.clear()
-        
-        if k == match_by:
-            compatible_collector_positive_far = compatible_collector_positive[compatible_collector_positive["mu_propagatedGlb_r"] > 170]
-            compatible_collector_positive_near = compatible_collector_positive[compatible_collector_positive["mu_propagatedGlb_r"] <= 170]
-            compatible_collector_negative_far = compatible_collector_negative[compatible_collector_negative["mu_propagatedGlb_r"] > 170]
-            compatible_collector_negative_near = compatible_collector_negative[compatible_collector_negative["mu_propagatedGlb_r"] <= 170]
-            
-            compatible_collector_positive_perp = compatible_collector_positive[compatible_collector_positive["ImpactAngle"] > 70]
-            compatible_collector_positive_obli = compatible_collector_positive[compatible_collector_positive["ImpactAngle"] <= 70]
-            compatible_collector_negative_perp = compatible_collector_negative[compatible_collector_negative["ImpactAngle"] > 70]
-            compatible_collector_negative_obli = compatible_collector_negative[compatible_collector_negative["ImpactAngle"] <= 70]
+    matched, prop, compatible_collector, selected_prop_perEvent, selected_rech_perEvent = main()
 
 
-            h_pos_far = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_positive_far[k]))
-            h_pos_near = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_positive_near[k]))
-            h_neg_far = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_negative_far[k]))
-            h_neg_near = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_negative_near[k]))
-            
-            h_pos_perp = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_positive_perp[k]))
-            h_pos_obli = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_positive_obli[k]))
-            h_neg_perp = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_negative_perp[k]))
-            h_neg_obli = hist.Hist(hist.axis.Regular(nbins_chrg, min_x_chrg, max_x_chrg, label=f"{k}")).fill( ak.flatten(compatible_collector_negative_obli[k]))
-            main_ax_artists, sublot_ax_arists = h_pos_far.plot_ratio(
-                h_neg_far,
-                rp_ylabel=r"Ratio Positve GlbR>170 / Negative GlbR>170",
-                rp_num_label="Positve GlbR>170",
-                rp_denom_label="Negative GlbR>170",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/Far_R_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/Far_R_{k}.pdf")
-            fig_ratio.clear()
-            
-            main_ax_artists, sublot_ax_arists = h_pos_near.plot_ratio(
-                h_neg_near,
-                rp_ylabel=r"Ratio Positve GlbR<=170 / Negative GlbR<=170",
-                rp_num_label="Positive GlbR<=170",
-                rp_denom_label="Negative GlbR<=170",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/Near_R_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/Near_R_{k}.pdf")
-            fig_ratio.clear()
-            main_ax_artists, sublot_ax_arists = h_pos_perp.plot_ratio(
-                h_neg_perp,
-                rp_ylabel=r"Ratio Positive Perp / Negative Perp",
-                rp_num_label="Positve angle>70°",
-                rp_denom_label="Negative angle>70°",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/PerpTracks_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/PerpTracks_{k}.pdf")
-            fig_ratio.clear()
-            
-            main_ax_artists, sublot_ax_arists = h_pos_obli.plot_ratio(
-                h_neg_obli,
-                rp_ylabel=r"Ratio Positive Obli / Negative Obli",
-                rp_num_label="Positve angle<70°",
-                rp_denom_label="Negative angle<70°",
-                rp_uncert_draw_type="bar",  # line or bar
-            )
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/ObliTracks_{k}.png")
-            fig_ratio.savefig(f"{TrackQualityCharge_output_folder_path}/ObliTracks_{k}.pdf")
-            fig_ratio.clear()
-
-
-        main_ax_artists, sublot_ax_arists = h_short.plot_ratio(
-            h_long,
-            rp_ylabel=r"Ratio short / long",
-            rp_num_label="short",
-            rp_denom_label="long",
-            rp_uncert_draw_type="bar",  # line or bar
-        )
-        fig_ratio.savefig(f"{TrackQualitySize_output_folder_path}/ChamberSize_Ratio_{k}.png")
-        fig_ratio.savefig(f"{TrackQualitySize_output_folder_path}/ChamberSize_Ratio_{k}.pdf")
-        fig_ratio.clear()
-
-
-        h_core.plot(ax=axs_res[0],color="orange")
-        h_tails.plot(ax=axs_res[1],color="darkviolet")    
-        fig_res.savefig(f"{TrackQualityResidual_output_folder_path}/TailCore_Hist_{k}.png")
-        fig_res.savefig(f"{TrackQualityResidual_output_folder_path}/TailCore_Hist_{k}.pdf")
-        axs_res[0].clear()
-        axs_res[1].clear()
-        
-        h_L1.plot(ax=axs_ly[0],color="orange")
-        h_L2.plot(ax=axs_ly[1],color="darkviolet")    
-        fig_ly.savefig(f"{TrackQualityLayer_output_folder_path}/Layer_Hist_{k}.png")
-        fig_ly.savefig(f"{TrackQualityLayer_output_folder_path}/Layer_Hist_{k}.pdf")
-        axs_ly[0].clear()
-        axs_ly[1].clear()
-    ## END PLOT DISTRIBUTION MARCELLO """
 
     start = time.time()
     df = EfficiencySummary(matched, prop)
     logger.info(f"Summary generated in {time.time()-start:.3f} s")
     ExtendEfficiencyCSV(df, BASE_DIR / f"data/output/{output_name}.csv")
     configuration.dump_config(BASE_DIR / f"data/output/{output_name}.yml")
+    
+    fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+    axs[0].hist(selected_prop_perEvent,10,range=(0,10),label="PropHit per evt")
+    axs[1].hist(selected_rech_perEvent,100,range=(0,100),label="RecHit per evt")
+    axs[0].legend()
+    axs[1].legend()
+    fig.savefig(f"{residual_output_folder_path}/HitsPerEvent.png")
+    
     if args.residuals:
-        for eta in range(1,9):
-            ### ONLY POSITIVE MUONS
-            logger.warning("Working on positive muons only")
-            tmp_compatible_collector = compatible_collector[(compatible_collector["mu_propagated_charge"] == +1)&(compatible_collector["mu_propagated_etaP"] == eta)]
-            start = time.time()
-            residual_hist, bin_edges = Fill_Histo_Residuals(tmp_compatible_collector, np.array([-matching_cuts[match_by], matching_cuts[match_by]]), 300)
-            logger.info(f"Residuals binned in {time.time()-start:.3f} s")
-
-            start = time.time()
-            Store_Binned_Residuals(residual_hist, bin_edges, residual_output_folder_path, output_name_prefix=f"Eta{eta}_PosiMuons_",enable_plot=False)
-            logger.info(f"Residuals PosiMuons plotted in {time.time()-start:.3f} s")
-
-
-            ### ONLY NEGATIVE MUONS
-            logger.warning("Working on negative muons only")
-            tmp_compatible_collector = compatible_collector[(compatible_collector["mu_propagated_charge"] == -1)&(compatible_collector["mu_propagated_etaP"] == eta)]
-            start = time.time()
-            residual_hist, bin_edges = Fill_Histo_Residuals(tmp_compatible_collector, np.array([-matching_cuts[match_by], matching_cuts[match_by]]), 300)
-            logger.info(f"Residuals binned in {time.time()-start:.3f} s")
-
-            start = time.time()
-            Store_Binned_Residuals(residual_hist, bin_edges, residual_output_folder_path, output_name_prefix=f"Eta{eta}_NegaMuons_",enable_plot=False)
-            logger.info(f"Residuals NegaMuons plotted in {time.time()-start:.3f} s")
-
+        #SAVE CSV WITH RESIDUALS
+        mydf = ak.to_dataframe(compatible_collector)
+        mydf.to_csv(f"./test.csv")
+        tmp_compatible_collector = compatible_collector
+        start = time.time()
+        residual_hist, bin_edges = Fill_Histo_Residuals(tmp_compatible_collector, np.array([-0.18, 0.18]), 300)
+        logger.info(f"Residuals binned in {time.time()-start:.3f} s")
+        start = time.time()
+        Store_Binned_Residuals(residual_hist, bin_edges, residual_output_folder_path,enable_plot=True)
+        logger.info(f"Residuals PosiMuons plotted in {time.time()-start:.3f} s")
     logger.info(f"Timestamp {analysis_timestamp}")
+    fig, axs = plt.subplots(3, 8, figsize=(60, 20))
+    for eta in range(1,9):
+        axs[0][eta-1].hist(ak.flatten(tmp_compatible_collector[tmp_compatible_collector["mu_propagated_etaP"]==eta].residual_phi),bins=200,range=(-40,40),label=f"Eta{eta} Residuals Phi")
+        axs[1][eta-1].hist(ak.flatten(tmp_compatible_collector[tmp_compatible_collector["mu_propagated_etaP"]==eta].residual_rdphi),bins=200,range=(-40,40),label=f"Eta{eta} Residuals R /\Phi")
+        axs[2][eta-1].hist(ak.flatten(tmp_compatible_collector[tmp_compatible_collector["mu_propagated_etaP"]==eta].mu_propagatedLoc_x),bins=200,range=(-20,20),label=f"Eta{eta} Propagated Loc x",alpha=0.5)
+        axs[2][eta-1].hist(ak.flatten(tmp_compatible_collector[tmp_compatible_collector["mu_propagated_etaP"]==eta].gemRecHit_loc_x),bins=200,range=(-20,20),label=f"Eta{eta} rechit loc x",alpha=0.5)
+        axs[0][eta-1].legend()
+        axs[1][eta-1].legend()
+        axs[2][eta-1].legend()
+    fig.tight_layout()
+    fig.savefig(f"{residual_output_folder_path}/AllResiduals.png")
+    fig.savefig(f"{residual_output_folder_path}/AllResiduals.pdf")
+    
+

@@ -1,20 +1,21 @@
 data_input:
-  folders: []
+  folders: !!python/list []
   max_evts: !!python/int -1
-  HVMask_path: ""
-  runRange: []
+  HVMask_path:  ""
+  runRange: !!python/list []
 parameters:
-  maxPropPhi_Err: !!python/float 0.005
-  maxPropR_Err: !!python/float 1
-  minpT: !!python/float 2
+  rangePropPhi_Err: !!python/list [0.,0.005]
+  rangePropR_Err: !!python/list [0., 1.]
+  range_pT: !!python/list [2.,50.]
   fiducialR: !!python/float 1
   fiducialPhi: !!python/float 0.005
-  RangeChi2: !!python/list [0,99999999]
-  minME1: !!python/int 0
-  minME2: !!python/int 0
-  minME3: !!python/int 0
-  minME4: !!python/int 0
+  rangeChi2: !!python/list [0,4]
+  rangeSTAhits: !!python/list [10,99999999] 
+  rangeME1hits: !!python/list [0,99999999]
+  rangeME2hits: !!python/list [0,99999999]
+  rangeME3hits: !!python/list [0,99999999]
+  rangeME4hits: !!python/list [0,99999999]
 matching_window:
-  residual_rdphi : !!python/float 4.
+  residual_rdphi: !!python/float 4.0
   residual_phi: !!python/float 0.0025
 analysis_label: ""

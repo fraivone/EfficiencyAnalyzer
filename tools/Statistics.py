@@ -154,3 +154,8 @@ class ItemEfficiency:
                 if consistent: print(f"\033[1;92mConsistent\033[1;0m")
                 else: print(f"\033[1;31mInconsistent\033[1;0m")
                 print()
+
+if __name__ == '__main__':
+    print("PropagatedHits\tExpectedUncertainity%")
+    for hits in [100,500,1000,5000,10000]:
+        print(hits,(generateClopperPearsonInterval(0.7*hits,hits)[1] - generateClopperPearsonInterval(0.7*hits,hits)[0])*100)

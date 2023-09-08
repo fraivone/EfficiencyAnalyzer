@@ -2,8 +2,8 @@ import awkward as ak
 import numpy as np
 import json
 
-cut_labels = ["maxPropPhi_Err", "maxPropR_Err", "minpT", "fiducialR", "fiducialPhi", "RangeChi2", "minME1", "minME2", "minME3", "minME4"]
-mask_labels = ["no_Mask","overallGood_Mask","isME11_Mask","isGE11_Mask"] + [ k+"_Mask" for k in cut_labels] + ["DAQMaskedVFAT","DAQError","DAQenabledOH","HVMask"]
+cut_labels = ["rangePropPhi_Err", "rangePropR_Err", "range_pT", "fiducialR", "fiducialPhi", "rangeChi2", "rangeSTAhits", "rangeME1hits", "rangeME2hits", "rangeME3hits", "rangeME4hits"]
+mask_labels = ["no_Mask","overallGood_Mask","isME11_Mask"] + [ k+"_Mask" for k in cut_labels] + ["DAQMaskedVFAT","DAQMissingVFAT", "DAQError","DAQenabledOH","HVMask"]
 
 
 def chamberName2_SRCL(chamberName):
@@ -21,39 +21,42 @@ def chamberName2_SRCL(chamberName):
 ## Returns a dict containing the number of prophits that survived each cut and the parameters used 
 def countNumberOfPropHits(dict_of_masks):
     output_dict = {}
-    for k in mask_labels: output_dict[k] = ak.sum(dict_of_masks[k])
+    for k in mask_labels: 
+        if k in dict_of_masks:
+            output_dict[k] = ak.sum(dict_of_masks[k])
     return output_dict
 
 ## Retruns a dict containing the masks and cuts used
-def calcMuonHit_masks(gemprophit_array, etaID_boundaries_array, maxPropPhi_Err=99999,maxPropR_Err=99999,minpT=0,fiducialR=0,fiducialPhi=0,RangeChi2=[0,99999999],minME1=0,minME2=0,minME3=0,minME4=0):
+def calcMuonHit_masks(gemprophit_array, etaID_boundaries_array, rangePropPhi_Err=[0,99999],rangePropR_Err=[0,99999],range_pT=[0,99999999],fiducialR=0,fiducialPhi=0,rangeChi2=[0,99999999],rangeSTAhits=[0,99999999],rangeME1hits=[0,99999999],rangeME2hits=[0,99999999],rangeME3hits=[0,99999999],rangeME4hits=[0,99999999]):
     
     dict_of_masks = {}
-    dict_of_masks["maxPropPhi_Err"] = maxPropPhi_Err
-    dict_of_masks["maxPropR_Err"] = maxPropR_Err
-    dict_of_masks["minpT"] = minpT
+    dict_of_masks["rangePropPhi_Err"] = rangePropPhi_Err
+    dict_of_masks["rangePropR_Err"] = rangePropR_Err
+    dict_of_masks["range_pT"] = range_pT
     dict_of_masks["fiducialR"] = fiducialR
     dict_of_masks["fiducialPhi"] = fiducialPhi
-    dict_of_masks["RangeChi2"] = RangeChi2
-    dict_of_masks["minME1"] = minME1
-    dict_of_masks["minME2"] = minME2
-    dict_of_masks["minME3"] = minME3
-    dict_of_masks["minME4"] = minME4
+    dict_of_masks["rangeChi2"] = rangeChi2
+    dict_of_masks["rangeSTAhits"] = rangeSTAhits
+    dict_of_masks["rangeME1hits"] = rangeME1hits
+    dict_of_masks["rangeME2hits"] = rangeME2hits
+    dict_of_masks["rangeME3hits"] = rangeME3hits
+    dict_of_masks["rangeME4hits"] = rangeME4hits
     
     dict_of_masks["no_Mask"] = ak.full_like(gemprophit_array.prop_etaID,True)
     dict_of_masks["isME11_Mask"] =  gemprophit_array.mu_propagated_isME11 == True
-    dict_of_masks["isGE11_Mask"] =  gemprophit_array.mu_propagated_station == 1
-    dict_of_masks["maxPropPhi_Err_Mask"] =  gemprophit_array.mu_propagatedGlb_errPhi < maxPropPhi_Err
-    dict_of_masks["maxPropR_Err_Mask"] =  gemprophit_array.mu_propagatedGlb_errR < maxPropR_Err
-    dict_of_masks["RangeChi2_Mask"] =  (gemprophit_array.mu_propagated_TrackNormChi2 <= RangeChi2[1]) & (gemprophit_array.mu_propagated_TrackNormChi2 >= RangeChi2[0])
-    dict_of_masks["minpT_Mask"] =  gemprophit_array.mu_propagated_pt >= minpT
-    dict_of_masks["minME1_Mask"] =  gemprophit_array.mu_propagated_nME1hits >= minME1
-    dict_of_masks["minME2_Mask"] =  gemprophit_array.mu_propagated_nME2hits >= minME2
-    dict_of_masks["minME3_Mask"] =  gemprophit_array.mu_propagated_nME3hits >= minME3
-    dict_of_masks["minME4_Mask"] =  gemprophit_array.mu_propagated_nME4hits >= minME4
+    dict_of_masks["rangePropPhi_Err_Mask"] =  (gemprophit_array.mu_propagatedGlb_errPhi >= rangePropPhi_Err[0]) & (gemprophit_array.mu_propagatedGlb_errPhi <= rangePropPhi_Err[1])
+    dict_of_masks["rangePropR_Err_Mask"] =  (gemprophit_array.mu_propagatedGlb_errR >= rangePropR_Err[0]) & (gemprophit_array.mu_propagatedGlb_errR <= rangePropR_Err[1])
+    dict_of_masks["rangeChi2_Mask"] =  (gemprophit_array.mu_propagated_TrackNormChi2 <= rangeChi2[1]) & (gemprophit_array.mu_propagated_TrackNormChi2 >= rangeChi2[0])
+    dict_of_masks["range_pT_Mask"] =  (gemprophit_array.mu_propagated_pt >= range_pT[0]) & (gemprophit_array.mu_propagated_pt <= range_pT[1])
+    dict_of_masks["rangeSTAhits_Mask"] =  (gemprophit_array.mu_propagated_nSTAHits >= rangeSTAhits[0]) & (gemprophit_array.mu_propagated_nSTAHits <= rangeSTAhits[1])
+    dict_of_masks["rangeME1hits_Mask"] =  (gemprophit_array.mu_propagated_nME1hits >= rangeME1hits[0]) & (gemprophit_array.mu_propagated_nME1hits <= rangeME1hits[1])
+    dict_of_masks["rangeME2hits_Mask"] =  (gemprophit_array.mu_propagated_nME2hits >= rangeME2hits[0]) & (gemprophit_array.mu_propagated_nME2hits <= rangeME2hits[1])
+    dict_of_masks["rangeME3hits_Mask"] =  (gemprophit_array.mu_propagated_nME3hits >= rangeME3hits[0]) & (gemprophit_array.mu_propagated_nME3hits <= rangeME3hits[1])
+    dict_of_masks["rangeME4hits_Mask"] =  (gemprophit_array.mu_propagated_nME4hits >= rangeME4hits[0]) & (gemprophit_array.mu_propagated_nME4hits <= rangeME4hits[1])
     dict_of_masks["fiducialPhi_Mask"] = np.logical_and(  gemprophit_array.mu_propagatedGlb_phi >= (etaID_boundaries_array[...,1] + fiducialPhi) ,  gemprophit_array.mu_propagatedGlb_phi <= (etaID_boundaries_array[...,0] - fiducialPhi))
     dict_of_masks["fiducialR_Mask"] = np.logical_and(  gemprophit_array.mu_propagatedGlb_r >= (etaID_boundaries_array[...,3] + fiducialR),  gemprophit_array.mu_propagatedGlb_r <= (etaID_boundaries_array[...,2] - fiducialR) )
     
-    overallGood_Mask = dict_of_masks["isME11_Mask"] & dict_of_masks["isGE11_Mask"] & dict_of_masks["maxPropR_Err_Mask"] & dict_of_masks["maxPropPhi_Err_Mask"] & dict_of_masks["RangeChi2_Mask"] & dict_of_masks["minpT_Mask"] & dict_of_masks["minME1_Mask"] & dict_of_masks["minME2_Mask"] & dict_of_masks["minME3_Mask"] & dict_of_masks["minME4_Mask"] & dict_of_masks["fiducialPhi_Mask"] & dict_of_masks["fiducialR_Mask"]
+    overallGood_Mask = dict_of_masks["isME11_Mask"]  & dict_of_masks["rangePropR_Err_Mask"] & dict_of_masks["rangePropPhi_Err_Mask"] & dict_of_masks["rangeChi2_Mask"] & dict_of_masks["range_pT_Mask"] & dict_of_masks["rangeSTAhits_Mask"] & dict_of_masks["rangeME1hits_Mask"] & dict_of_masks["rangeME2hits_Mask"] & dict_of_masks["rangeME3hits_Mask"] & dict_of_masks["rangeME4hits_Mask"] & dict_of_masks["fiducialPhi_Mask"] & dict_of_masks["fiducialR_Mask"]
     dict_of_masks["overallGood_Mask"] = overallGood_Mask
 
     return dict_of_masks
@@ -101,6 +104,20 @@ def calcDAQMaskedVFAT_mask(gemPropHit,gemOHStatus):
     x_vfat = ak.values_astype(ak.cartesian({"Prop":gemPropHit.mu_propagated_VFAT,"OH":gemOHStatus.gemOHStatus_VFATMasked},nested=True),np.uint32) ## forcing uint32 to avoid issues with the following 2**x_vfat["prop"]
     ## STEP2 & STEP3
     PropHit_Ignored_mask = ak.any((x_station["OH"] == x_station["Prop"]) & (x_region["OH"] == x_region["Prop"]) & (x_chamber["OH"] == x_chamber["Prop"])  & (x_layer["OH"] == x_layer["Prop"])& (ak.values_astype((x_vfat["OH"] / 2**(x_vfat["Prop"])) %2,np.uint32) == 0),axis=-1) 
+
+    return np.logical_not(PropHit_Ignored_mask)
+    
+    ## returns a filtering mask that excludes the prophits for which the associated VFAT was missing (should have delivered data but didn't)
+def calcDAQMissingVFAT_mask(gemPropHit,gemOHStatus):
+    
+    ## STEP1
+    x_station = ak.cartesian({"Prop":gemPropHit.mu_propagated_station,"OH":gemOHStatus.gemOHStatus_station},nested=True)
+    x_region = ak.cartesian({"Prop":gemPropHit.mu_propagated_region,"OH":gemOHStatus.gemOHStatus_region},nested=True)
+    x_chamber = ak.cartesian({"Prop":gemPropHit.mu_propagated_chamber,"OH":gemOHStatus.gemOHStatus_chamber},nested=True)
+    x_layer = ak.cartesian({"Prop":gemPropHit.mu_propagated_layer,"OH":gemOHStatus.gemOHStatus_layer},nested=True)
+    x_vfat = ak.values_astype(ak.cartesian({"Prop":gemPropHit.mu_propagated_VFAT,"OH":gemOHStatus.gemOHStatus_VFATMissing},nested=True),np.uint32) ## forcing uint32 to avoid issues with the following 2**x_vfat["prop"]
+    ## STEP2 & STEP3
+    PropHit_Ignored_mask = ak.any((x_station["OH"] == x_station["Prop"]) & (x_region["OH"] == x_region["Prop"]) & (x_chamber["OH"] == x_chamber["Prop"])  & (x_layer["OH"] == x_layer["Prop"])& (ak.values_astype((x_vfat["OH"] / 2**(x_vfat["Prop"])) %2,np.uint32) == 1),axis=-1) 
 
     return np.logical_not(PropHit_Ignored_mask)
 

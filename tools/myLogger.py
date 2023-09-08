@@ -10,7 +10,7 @@ numba_logger.setLevel(20)
 logger = logging
 logger.MEMORY = logger.INFO - 1  # 19
 logger.DEBUG2 = logger.DEBUG - 1
-logging_level = logger.INFO
+logging_level = logger.MEMORY
 
 logger.basicConfig(
     format="[{asctime}] {levelname} - {message}",

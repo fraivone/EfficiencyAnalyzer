@@ -13,7 +13,6 @@ EOS_INDEX_FILE = Path("/eos/user/f/fivone/www/index.php")
 
 
 logger = default_logger.getLogger(__name__)
-logger.setLevel(default_logger.MEMORY)  # type: ignore
 
 
 
