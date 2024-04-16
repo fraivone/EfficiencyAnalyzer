@@ -453,7 +453,7 @@ def main():
             if the_heap.heap().size / 2**20 > heap_dump_size:
                 logger.error(f"After dumping the collectors heap size is still > {heap_dump_size}")
 
-        if batch_index == 0: break
+        #if batch_index == 0: break
 
     if matched_collector is not None and propagated_collector is not None:
         logger.info(f"AVG Efficiency: {ak.sum(ak.num(matched_collector.prop_etaID,axis=-1))}/{ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))} = {ak.sum(ak.count(matched_collector.prop_etaID,axis=-1))/ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))}")
