@@ -1,13 +1,17 @@
 #include "VFATEffPlotter.h"
 
-std::string chamberName(int station, int region, int chamber, int layer){
-	std::string str_region;
-	
+std::string chamberName(int station, int region, int chamber, int layer, int chamberType){
+
+    std::string str_region;
+    std::string letter[5]={"None","A","B","C","D"};
 	if (region == 1) str_region = "P";
 	else str_region = "M";
 	std::stringstream ss;
-	ss << "GE" << station << "1-"<<str_region<<"-"<<std::setfill('0')<<std::setw(2)<<chamber<<"L"<<layer;
-	
+    if (station ==1)
+        ss << "GE" << station << "1-"<<str_region<<"-"<<std::setfill('0')<<std::setw(2)<<chamber<<"L"<<layer;
+    else 
+        ss << "GE" << station << "1-"<<str_region<<"-"<<std::setfill('0')<<std::setw(2)<<chamber<<"L"<<layer<<letter[chamberType];
+
 	return ss.str();
 }
 
@@ -25,6 +29,7 @@ gStyle->SetNumberContours(NContours);
 
 
 int main(int argc, char* argv[]) {
+ 
 	 if (argc != 3){
 		std::cout<<"Exepcted arguments: <csv_path> <output_folder_name>"<<std::endl;
         std::cout<<"Where <output_folder_name> gets appended to /eos/user/f/fivone/www/P5_Operations/Run3/"<<std::endl;
@@ -32,12 +37,13 @@ int main(int argc, char* argv[]) {
 		return 0;
 	 }
 	std::string csv_path = argv[1];
-	std::string output_folder_name = "/eos/user/f/fivone/www/P5_Operations/Run3/"+std::string(argv[2]);
-	system(("mkdir -p "+output_folder_name).c_str());
-	system(("cp /eos/user/f/fivone/www/index.php "+output_folder_name).c_str());
+    std::string output_folder_name = "/eos/user/f/fivone/www/P5_Operations/Run3/"+std::string(argv[2]);
+    //std::string output_folder_name = "./"+std::string(argv[2]);  
+    system(("mkdir -p "+output_folder_name).c_str());
+	system(("cp /eos/user/f/fivone/www/P5_Operations/index.php "+output_folder_name).c_str());
 	output_folder_name += "/VFAT/";
 	system(("mkdir -p "+output_folder_name).c_str());
-	system(("cp /eos/user/f/fivone/www/index.php "+output_folder_name).c_str());
+    system(("cp /eos/user/f/fivone/www/P5_Operations/index.php "+output_folder_name).c_str());
 
     gROOT->SetBatch(1);
 	SetPalette();
@@ -56,21 +62,25 @@ int main(int argc, char* argv[]) {
 			row.push_back(word);
 		content.push_back(row);
     }
-    
+
 	int s = content.size();    
     for(const auto & item : content) {
 	    auto name = chamberName(
 			std::stoi(item[0]),
 			std::stoi(item[1]),
 			std::stoi(item[2]),
-			std::stoi(item[3]));
+			std::stoi(item[3]), 
+            std::stoi(item[4]));
 			
-        EfficiencyCollector[name].emplace_back(std::stoi(item[4]), std::stoi(item[5]), std::stoi(item[6]));
+        EfficiencyCollector[name].emplace_back(std::stoi(item[5]), std::stoi(item[6]), std::stoi(item[7]));
     }
-    
+
 	// Filling histos
 	for (auto const& x : EfficiencyCollector){
 		auto this_chamberName = x.first;
+
+        if (this_chamberName.find("GE21")!=-1 )
+                                continue;
 		auto this_chamberHits = x.second;
 		bool isLong = std::stoi(this_chamberName.substr(this_chamberName.length() - 3, 1)) % 2 == 0;
 		TH2Poly* Plot2D = isLong ? (TH2Poly*)TH2Long->Clone() : (TH2Poly*)TH2Short->Clone();

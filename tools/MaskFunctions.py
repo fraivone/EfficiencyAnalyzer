@@ -43,7 +43,9 @@ def calcMuonHit_masks(gemprophit_array, etaID_boundaries_array, rangePropPhi_Err
     dict_of_masks["rangeME4hits"] = rangeME4hits
     
     dict_of_masks["no_Mask"] = ak.full_like(gemprophit_array.prop_etaID,True)
-    dict_of_masks["isME11_Mask"] =  gemprophit_array.mu_propagated_isME11 == True
+    dict_of_masks["isME11_Mask"] =  gemprophit_array.mu_propagated_isME11 == True 
+    dict_of_masks["isME21_Mask"] =  gemprophit_array.mu_propagated_isME21 == True
+    dict_of_masks["isMEX1_Mask"] =  ak.where(gemprophit_array.mu_propagated_station<2, dict_of_masks["isME11_Mask"] , dict_of_masks["isME21_Mask"])
     dict_of_masks["rangePropPhi_Err_Mask"] =  (gemprophit_array.mu_propagatedGlb_errPhi >= rangePropPhi_Err[0]) & (gemprophit_array.mu_propagatedGlb_errPhi <= rangePropPhi_Err[1])
     dict_of_masks["rangePropR_Err_Mask"] =  (gemprophit_array.mu_propagatedGlb_errR >= rangePropR_Err[0]) & (gemprophit_array.mu_propagatedGlb_errR <= rangePropR_Err[1])
     dict_of_masks["rangeChi2_Mask"] =  (gemprophit_array.mu_propagated_TrackNormChi2 <= rangeChi2[1]) & (gemprophit_array.mu_propagated_TrackNormChi2 >= rangeChi2[0])
@@ -56,9 +58,9 @@ def calcMuonHit_masks(gemprophit_array, etaID_boundaries_array, rangePropPhi_Err
     dict_of_masks["fiducialPhi_Mask"] = np.logical_and(  gemprophit_array.mu_propagatedGlb_phi >= (etaID_boundaries_array[...,1] + fiducialPhi) ,  gemprophit_array.mu_propagatedGlb_phi <= (etaID_boundaries_array[...,0] - fiducialPhi))
     dict_of_masks["fiducialR_Mask"] = np.logical_and(  gemprophit_array.mu_propagatedGlb_r >= (etaID_boundaries_array[...,3] + fiducialR),  gemprophit_array.mu_propagatedGlb_r <= (etaID_boundaries_array[...,2] - fiducialR) )
     
-    overallGood_Mask = dict_of_masks["isME11_Mask"]  & dict_of_masks["rangePropR_Err_Mask"] & dict_of_masks["rangePropPhi_Err_Mask"] & dict_of_masks["rangeChi2_Mask"] & dict_of_masks["range_pT_Mask"] & dict_of_masks["rangeSTAhits_Mask"] & dict_of_masks["rangeME1hits_Mask"] & dict_of_masks["rangeME2hits_Mask"] & dict_of_masks["rangeME3hits_Mask"] & dict_of_masks["rangeME4hits_Mask"] & dict_of_masks["fiducialPhi_Mask"] & dict_of_masks["fiducialR_Mask"]
+    overallGood_Mask = dict_of_masks["isMEX1_Mask"]  & dict_of_masks["rangePropR_Err_Mask"] & dict_of_masks["rangePropPhi_Err_Mask"] & dict_of_masks["rangeChi2_Mask"] & dict_of_masks["range_pT_Mask"] & dict_of_masks["rangeSTAhits_Mask"] & dict_of_masks["rangeME1hits_Mask"] & dict_of_masks["rangeME2hits_Mask"] & dict_of_masks["rangeME3hits_Mask"] & dict_of_masks["rangeME4hits_Mask"] & dict_of_masks["fiducialPhi_Mask"] & dict_of_masks["fiducialR_Mask"]
     dict_of_masks["overallGood_Mask"] = overallGood_Mask
-
+    
     return dict_of_masks
 
     ## returns a filtering mask that excludes the prophits for which the associated VFAT was masked by the DAQ during the evt

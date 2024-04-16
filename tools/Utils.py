@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import List
 from Statistics import generateClopperPearsonInterval
 
-EOS_OUTPUT_PATH = Path("/eos/user/f/fivone/www/P5_Operations/Run3/")
+EOS_OUTPUT_PATH = Path("/eos/user/c/cgalloni/www/P5_Operations_test/")
 BASE_DIR = Path(__file__).parent.parent
-EOS_INDEX_FILE = Path("/eos/user/f/fivone/www/index.php")
+EOS_INDEX_FILE = Path("/eos/user/c/cgalloni/www/Plots/index.php")
 
 
 logger = default_logger.getLogger(__name__)
@@ -29,12 +29,22 @@ def iEtaiPhi_2_VFAT(iEta, iPhi):
     return ak.values_astype(VFAT, np.short)
 
 
+
+def iEtaStrip_2_VFAT(iEta, strip, station):
+     # implementing with DPG convention: not accurate for the DAQ convetion. 
+    if station==1:
+         VFAT = (strip // 128) * 8 + (8 - iEta)   
+         return ak.values_astype(VFAT, np.short)  
+    if station==2:
+    # return: puppa visto che non e' nel file:
+          VFAT = (strip // 64) * 2 +  (4 * math.ceil(iEta / 4) - iEta) // 2  
+          return ak.values_astype(VFAT, np.short)     
+
 ## given iEta,firstStrip, CLS having the same structure, returns VFAT number with consistent structure (i.e. int,int,int --> int  ; array,array,array --> array)
-def recHit2VFAT(etaP, firstStrip, CLS):
+def recHit2VFAT(etaP, firstStrip, CLS, station):
     ##TODO define procedure in case inputs are ints (values_astype would raise an error)
-    lastStrip = firstStrip + CLS - 1
-    iPhi = ak.values_astype(((firstStrip + lastStrip) / 2) // 128, np.short)
-    return iEtaiPhi_2_VFAT(etaP, iPhi)
+    centerStrip = ak.values_astype(firstStrip + CLS // 2 , np.short)
+    return iEtaStrip_2_VFAT(etaP, centerStrip, station)
 
 
 @numba.njit(cache=True)
