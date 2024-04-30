@@ -15,7 +15,8 @@ import guppy
 
 from Utils import (
     heap_size,
-    iEtaiPhi_2_VFAT,
+    iEtaStrip_2_VFAT,
+    iEta_2_chamberType,
     recHit2VFAT,
     EfficiencySummary,
     EOS_OUTPUT_PATH,
@@ -32,6 +33,7 @@ from MaskFunctions import (
     calcDAQenabledOH_mask,
     calcHV_mask,
 )
+
 from AkArray_Operations import find_boundaries, boundaries_translation, best_match
 from PlottingFunctions import Fill_Histo_Residuals, Store_Binned_Residuals
 from config_parser import config
@@ -45,7 +47,7 @@ the_heap.setref()
 ## PARSER
 parser = argparse.ArgumentParser(description="Analyzer parser")
 parser.add_argument("config", help="Analysis description file")
-parser.add_argument("--folder_name", type=str, help="Output folder name", required=False, default="test")
+parser.add_argument("--folder_name", type=str, help="Output folder name", required=False, default="")
 parser.add_argument("--residuals", help="Enable plotting residuals", required=False, action="store_true", default=False)
 parser.add_argument("--timestamp", type=str, help="label for unique analysis results", required=False, default=time.strftime("_%-y%m%d%H%M"))
 args = parser.parse_args()
@@ -64,7 +66,11 @@ runRange = sorted(configuration.data_input["runRange"])
 
 ## CREATE FOLDERS and COPY FILES
 output_folder_path.mkdir(parents=True, exist_ok=True)
+#file_index= str(EOS_INDEX_FILE).split("/")[-1]
+#if not Path(join(output_folder_path,file_index)).is_file():
 copy(EOS_INDEX_FILE, output_folder_path)
+
+
 if args.residuals:
     residual_output_folder_path = Path(output_folder_path, f"Residuals{analysis_timestamp}")
     residual_output_folder_path.mkdir(parents=True, exist_ok=True)
@@ -147,6 +153,7 @@ def main():
         "mu_propagated_chamber",
         "mu_propagated_layer",
         "mu_propagated_etaP",
+        "mu_propagated_strip",
         "mu_propagated_Outermost_z",
         "mu_propagated_isME11",
         "mu_propagated_isRPC",
@@ -181,7 +188,7 @@ def main():
         0.029362374,
     )
     global total_events
-    station = 1 ## GE11 Only
+
 
     for batch_index, b in enumerate(batches):
         if max_evts != -1 and total_events > max_evts:
@@ -243,15 +250,16 @@ def main():
         heap_size(the_heap, "after adding etaID")
 
         ## Selecting events having at least 1 prop hit on GE11
-        atLeast1GE11Prop = ak.any(gemPropHit.mu_propagated_station == station, axis=-1)
-        gemPropHit = gemPropHit[atLeast1GE11Prop]
-        gemRecHit = gemRecHit[atLeast1GE11Prop]
-        gemOHStatus = gemOHStatus[atLeast1GE11Prop]
+        #atLeast1GE11Prop = ak.any(gemPropHit.mu_propagated_station == station, axis=-1)
+        #gemPropHit = gemPropHit[atLeast1GE11Prop]
+        #gemRecHit = gemRecHit[atLeast1GE11Prop]
+        #gemOHStatus = gemOHStatus[atLeast1GE11Prop]
         ## Excluding propagated hits from GE21
-        gemPropHit = gemPropHit[gemPropHit.mu_propagated_station == station]
+        #gemPropHit = gemPropHit[gemPropHit.mu_propagated_station == station ]
+        #gemPropHit = gemPropHit[gemPropHit.mu_propagated_region == 1 ]
         # Removing all GE21 prophits (no additional events removed)
-        heap_size(the_heap, "after filtering out GE21")
-
+        #heap_size(the_heap, "after filtering out GE21")
+        
         logger.debug(f" Extracting eta partition boundaries")
         etaID_boundaries_akarray_pre = ak.Array(map(find_boundaries, gemPropHit.prop_etaID))
         heap_size(the_heap, "arraying etaP boundaries")
@@ -264,13 +272,22 @@ def main():
             ((gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[1]) & (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[0]))* 1 +
             (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[1]) * 2
         )
+
+
+        # if I know the strip number i should get the "phiP" easily as the integer devision by 128 for GE11 - how is GE21 mapped?
+ 
         gemPropHit["mu_propagated_phiP"] = ak.values_astype(gemPropHit["mu_propagated_phiP"], np.short)
-        gemPropHit["mu_propagated_VFAT"] = iEtaiPhi_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_phiP)
+        #gemPropHit["mu_propagated_VFAT"] = iEtaiPhi_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_phiP)
+        
+        gemPropHit["mu_propagated_VFAT"] = iEtaStrip_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_strip, gemPropHit.mu_propagated_station)
+        gemPropHit["mu_propagated_chamberType"]= iEta_2_chamberType(gemPropHit.mu_propagated_etaP,gemPropHit.mu_propagated_layer, gemPropHit.mu_propagated_station)
         gemRecHit["gemRecHit_VFAT"] = recHit2VFAT(
             gemRecHit.gemRecHit_etaPartition,
             gemRecHit.gemRecHit_firstClusterStrip,
             gemRecHit.gemRecHit_cluster_size,
+            gemRecHit.gemRecHit_station
         )
+        gemRecHit["gemRecHit_chamberType"] = iEta_2_chamberType(gemRecHit.gemRecHit_etaPartition, gemRecHit.gemRecHit_layer, gemRecHit.gemRecHit_station)
         # GE21 approach to VFAT extrapolation TO BE TESTED
         # gemPropHit["propagated_offset_phi"] =  np.arcsin(  gemPropHit.mu_propagatedLoc_x/gemPropHit.mu_propagatedGlb_r )
         # gemPropHit["propagated_VFAT"] =  (11 - (gemPropHit.propagated_offset_phi - ak.min(gemPropHit.propagated_offset_phi)) // (GE21_phi_range/6)) - ((gemPropHit.mu_propagated_etaP-1)%4)//2
@@ -278,7 +295,7 @@ def main():
         heap_size(the_heap, "after extrapolating on VFATs")
 
         
-        
+        #why do i need to the following? don't I know already the VFAT?
         """
         in CMSSW angles are defined in the [-pi,pi] range.
         PhiMin > PhiMax happens for chambers 19 where phiMin = 174 degrees phiMax = -174.
@@ -307,6 +324,9 @@ def main():
         logger.debug(f" Calculating selection mask on muonTrack & propagation")
         input_par["gemprophit_array"] = gemPropHit
         input_par["etaID_boundaries_array"] = etaID_boundaries_akarray
+        
+        #print("etaID_boundaries_akarray ", etaID_boundaries_akarray)
+        #print("etaID_boundaries_akarray[...,1] ", etaID_boundaries_akarray[...,1])
         muonTrack_mask = calcMuonHit_masks(**input_par)
         
         logger.debug2(f" Restoring angle periodicity")
@@ -315,25 +335,26 @@ def main():
         logger.debug(f" Calculating selection mask on VFAT DAQ mask")
         DAQMaskedVFAT_mask = calcDAQMaskedVFAT_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQMaskedVFAT"] = DAQMaskedVFAT_mask
-        muonTrack_mask["overallGood_Mask"] = muonTrack_mask["overallGood_Mask"] & DAQMaskedVFAT_mask
+        #print ("DAQMaskedVFAT_mask",  DAQMaskedVFAT_mask)
+        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQMaskedVFAT_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating VFAT DAQ mask")
 
         logger.debug(f" Calculating selection mask on VFAT DAQ missing")
         DAQMissingVFAT_mask = calcDAQMissingVFAT_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQMissingVFAT"] = DAQMissingVFAT_mask
-        muonTrack_mask["overallGood_Mask"] = muonTrack_mask["overallGood_Mask"] & DAQMissingVFAT_mask
+        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQMissingVFAT_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating VFAT DAQ missing")
 
         logger.debug(f" Calculating selection mask on DAQ error")
         DAQError_mask = calcDAQError_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQError"] = DAQError_mask
-        muonTrack_mask["overallGood_Mask"] = muonTrack_mask["overallGood_Mask"] & DAQError_mask
+        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQError_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating DAQ error mask")
 
         logger.debug(f" Calculating selection mask on DAQ enabled OH")
         DAQenabledOH_mask = calcDAQenabledOH_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQenabledOH"] = DAQenabledOH_mask
-        muonTrack_mask["overallGood_Mask"] = muonTrack_mask["overallGood_Mask"] & DAQenabledOH_mask
+        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQenabledOH_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating DAQ enabled OH")
         logger.debug(f" Calculating HV selection mask")
         if HVmask_path is not None:
@@ -430,7 +451,9 @@ def main():
         heap_size(the_heap, " selection based on residuals")
 
         matched_collector = (ak.concatenate([matched_collector, accepted_hits]) if matched_collector is not None else accepted_hits)
+        #print ("matched_collector ", matched_collector ) 
         propagated_collector = (ak.concatenate([propagated_collector, selectedPropHit]) if propagated_collector is not None else selectedPropHit)
+        #print ("propagated_collector ", propagated_collector )
         compatible_collector = (ak.concatenate([compatible_collector, best_matches]) if compatible_collector is not None else best_matches)
 
         logger.debug2(f"Number of good prophits: {len(selectedPropHit)}")
@@ -453,7 +476,9 @@ def main():
             if the_heap.heap().size / 2**20 > heap_dump_size:
                 logger.error(f"After dumping the collectors heap size is still > {heap_dump_size}")
 
+        #Selects just the first batch of events for tests
         #if batch_index == 0: break
+
 
     if matched_collector is not None and propagated_collector is not None:
         logger.info(f"AVG Efficiency: {ak.sum(ak.num(matched_collector.prop_etaID,axis=-1))}/{ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))} = {ak.sum(ak.count(matched_collector.prop_etaID,axis=-1))/ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))}")
@@ -467,6 +492,7 @@ def main():
     return matched_collector, propagated_collector, compatible_collector
 
 if __name__ == "__main__":
+
     matched, prop, compatible_collector = main()
 
     compatible_collector["ImpactAngle"] = np.arccos(np.sqrt(compatible_collector["mu_propagatedLoc_dirX"]**2 + compatible_collector["mu_propagatedLoc_dirY"]**2))*180/np.pi

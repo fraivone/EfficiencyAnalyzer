@@ -1,7 +1,7 @@
 import awkward as ak
 import numpy as np
 from myLogger import logger as default_logger
-from EtaPartitionBoundaries import *
+from EtaPartitionBoundaries_2024 import *
 
 logger = default_logger.getLogger(__name__)
 logger.setLevel(default_logger.INFO)
