@@ -1,4 +1,5 @@
 import awkward as ak
+#import math as math
 import numpy as np
 import numba
 import pandas as pd
@@ -28,17 +29,27 @@ def iEtaiPhi_2_VFAT(iEta, iPhi):
     VFAT = iPhi * 8 + (8 - iEta)
     return ak.values_astype(VFAT, np.short)
 
+def iEta_2_chamberType(iEta, layer, station):
+    #Using layer per GE11, Module per GE21
+#    print ("station ", station)
+
+    chType_ge11 = ak.values_astype(layer, np.short)  
+    chType_ge21 = ak.values_astype(np.ceil((17-iEta)/4), np.short)  
+
+    return  ak.where(station<2, chType_ge11,  chType_ge21) 
 
 
 def iEtaStrip_2_VFAT(iEta, strip, station):
-     # implementing with DPG convention: not accurate for the DAQ convetion. 
-    if station==1:
-         VFAT = (strip // 128) * 8 + (8 - iEta)   
-         return ak.values_astype(VFAT, np.short)  
-    if station==2:
-    # return: puppa visto che non e' nel file:
-          VFAT = (strip // 64) * 2 +  (4 * math.ceil(iEta / 4) - iEta) // 2  
-          return ak.values_astype(VFAT, np.short)     
+    # implementing with DPG eta convention: not accurate for the DAQ convetion. 
+#    if station==1:
+#        vfat_ge11 = (strip // 128) * 8 + (8 - iEta)   
+#        return ak.values_astype(VFAT, np.short)  
+#    if station==2:
+#        vfat_ge21 = (strip // 64) * 2 +  (4 * np.ceil(iEta / 4) - iEta) // 2  
+# return ak.values_astype(VFAT, np.short)
+    vfat_ge11 = ak.values_astype( (strip // 128) * 8 + (8 - iEta),  np.short)
+    vfat_ge21 = ak.values_astype((strip // 64) * 2 +  (4 * np.ceil(iEta / 4) - iEta) // 2 ,  np.short)      
+    return ak.where(station<2, vfat_ge11,  vfat_ge21) # considering just Ge11 and GE21 atm.     
 
 ## given iEta,firstStrip, CLS having the same structure, returns VFAT number with consistent structure (i.e. int,int,int --> int  ; array,array,array --> array)
 def recHit2VFAT(etaP, firstStrip, CLS, station):
@@ -49,8 +60,8 @@ def recHit2VFAT(etaP, firstStrip, CLS, station):
 
 @numba.njit(cache=True)
 def empty_collector() -> np.ndarray:
-    return np.zeros((1, 2, 36, 2, 24), dtype=np.uint16)  # st,re,ch,la,vfat
-
+    return np.zeros((2, 2, 36, 2, 4, 24), dtype=np.uint16)  # st,re,ch,lay,type,vfat for GE11-GE21
+    
 
 ## using option parallel had caused race condition. Dropped
 @numba.njit(cache=True)
@@ -62,9 +73,9 @@ def aggregateHitsVFAT(array):
             re = (array[evt_idx].mu_propagated_region[hits_idx] + 1) // 2  ## transforming -1 -> 0, 1 -> 1 to respect the indexing
             ch = array[evt_idx].mu_propagated_chamber[hits_idx]
             layer = array[evt_idx].mu_propagated_layer[hits_idx]
+            chamberType = array[evt_idx].mu_propagated_chamberType[hits_idx]
             vfat = array[evt_idx].mu_propagated_VFAT[hits_idx]
-
-            collector[(st - 1, re, ch - 1, layer - 1, vfat)] += 1
+            collector[(st - 1, re, ch - 1, layer - 1, chamberType-1, vfat)] += 1
 
     return collector
 
@@ -78,7 +89,8 @@ def npArray_2_dataframe(array, name, columns) -> pd.DataFrame:
     return df
 
 def EfficiencySummary(matched, prop) -> pd.DataFrame:
-    columns = ["Station","Region","Chamber","Layer","VFAT"]  ## depends on function aggregateHitsVFAT
+    columns = ["Station","Region","Chamber","Layer", "ChamberType","VFAT"]  ## depends on function aggregateHitsVFAT
+    
     if matched is not None and prop is not None:
         match_aggregate = aggregateHitsVFAT(matched)
         prop_aggregate = aggregateHitsVFAT(prop)
@@ -88,18 +100,25 @@ def EfficiencySummary(matched, prop) -> pd.DataFrame:
     prop_df = npArray_2_dataframe(prop_aggregate, "propHit", columns)
 
     df_merge = pd.merge(match_df, prop_df, how="outer", on=columns)
+    df_merge.to_csv("Debug.txt", sep=";", index=False)
     ## transforming back
     df_merge["Station"] += 1
     df_merge["Region"] = df_merge["Region"] * 2 - 1
     df_merge["Chamber"] += 1
+    df_merge["ChamberType"] += 1
     df_merge["Layer"] += 1
 
+    #Removing empty/zero duplicates for GE11 as chamberType is just a duplication of the layer and 
+    #for GE21 entries with chambers that are different than 16 and 18 or vfat above number 12.   
+    df_merge=df_merge.loc[((df_merge["Layer"]==df_merge["ChamberType"]) & (df_merge["Station"]==1) )
+                          | ( (df_merge["Station"]==2) & (df_merge["VFAT"]<12) & ((df_merge["Chamber"]==16) | (df_merge["Chamber"]==18)))]
+    
     return df_merge
 
 
 def mergeEfficiencyCSV(df_list: List[pd.DataFrame]) -> pd.DataFrame:
     s = pd.concat(df_list)
-    s = s.groupby(["Station", "Region", "Chamber", "Layer", "VFAT"], as_index=False).sum()
+    s = s.groupby(["Station", "Region", "Chamber", "Layer", "ChamberType", "VFAT"], as_index=False).sum()
     return s
 
 
