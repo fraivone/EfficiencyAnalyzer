@@ -21,7 +21,6 @@ from Utils import (
     EfficiencySummary,
     OUTPUT_PATH,
     PHPINDEX_FILE,
-    BASE_DIR,
     ExtendEfficiencyCSV,
 )
 from MaskFunctions import (
@@ -484,7 +483,7 @@ def main():
         ## If the RAM goes full the process is terminated. Contain heap size by regurarly dumping the efficiency collectors
         if the_heap.heap().size / 2**20 > heap_dump_size:
             logger.warning(f"Heap size exceeds {heap_dump_size} MB, dumping collectors into temporary files")
-            ExtendEfficiencyCSV(EfficiencySummary(matched_collector, propagated_collector),BASE_DIR / f"data/output/{output_name}.csv")
+            ExtendEfficiencyCSV(EfficiencySummary(matched_collector, propagated_collector),OUTPUT_PATH / f"{output_name}.csv")
             matched_collector, propagated_collector = None, None
             heap_size(the_heap, "after dumping the efficiency collectors")
             if the_heap.heap().size / 2**20 > heap_dump_size:
@@ -742,8 +741,8 @@ if __name__ == "__main__":
     start = time.time()
     df = EfficiencySummary(matched, prop)
     logger.info(f"Summary generated in {time.time()-start:.3f} s")
-    ExtendEfficiencyCSV(df, BASE_DIR / f"data/output/{output_name}.csv")
-    configuration.dump_config(BASE_DIR / f"data/output/{output_name}.yml")
+    ExtendEfficiencyCSV(df, OUTPUT_PATH / f"{output_name}.csv")
+    configuration.dump_config(OUTPUT_PATH / f"{output_name}.yml")
     if args.residuals:
         for eta in range(1,9):
             ### ONLY POSITIVE MUONS

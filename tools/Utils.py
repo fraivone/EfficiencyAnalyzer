@@ -11,13 +11,10 @@ from Statistics import generateClopperPearsonInterval
 
 
 
-OUTPUT_PATH = environ.get("OUTPUT_PATH","")
-PHPINDEX_FILE = environ.get("INDEXPHP","")
+
 BASE_DIR = Path(__file__).parent.parent
-if OUTPUT_PATH == "":
-    OUTPUT_PATH = BASE_DIR/"data/output/"
-if PHPINDEX_FILE == "":
-    PHPINDEX_FILE = None
+OUTPUT_PATH = BASE_DIR/"data/output/" if environ.get("OUTPUT_PATH","") == "" else Path(environ.get("OUTPUT_PATH",""))
+PHPINDEX_FILE = None if environ.get("INDEXPHP","") == "" else Path(environ.get("INDEXPHP",""))
 
 logger = default_logger.getLogger(__name__)
 
