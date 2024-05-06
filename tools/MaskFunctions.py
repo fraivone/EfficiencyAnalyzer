@@ -5,6 +5,8 @@ import json
 cut_labels = ["rangePropPhi_Err", "rangePropR_Err", "range_pT", "fiducialR", "fiducialPhi", "rangeChi2", "rangeSTAhits", "rangeME1hits", "rangeME2hits", "rangeME3hits", "rangeME4hits"]
 mask_labels = ["no_Mask","overallGood_Mask","isME11_Mask"] + [ k+"_Mask" for k in cut_labels] + ["DAQMaskedVFAT","DAQMissingVFAT", "DAQError","DAQenabledOH","HVMask"]
 
+GE21Letter_2_Module = {"A":1,"B":2,"C":3,"D":4}
+
 
 def chamberName2_SRCL(chamberName):
     ## Accepts as input either 
@@ -14,9 +16,13 @@ def chamberName2_SRCL(chamberName):
     st = 2 if "GE21" in chamberName else 1
     re = -1 if "M" in chamberName else 1
     ch = int( chamberName.split("-")[-1][:2] )
-    la = int( chamberName.split("-")[-1][-1] )
-
-    return (st,re,ch,la)
+    if st == 1:
+        la = int( chamberName.split("-")[-1][-1] )
+        chType = la
+    if st == 2:
+        la = int( chamberName.split("-")[-1][-2] )
+        chType = GE21Letter_2_Module[chamberName.split("-")[-1][-1]]
+    return (st,re,ch,la,chType)
 
 ## Returns a dict containing the number of prophits that survived each cut and the parameters used 
 def countNumberOfPropHits(dict_of_masks):
@@ -198,10 +204,10 @@ def calcHV_mask(gemPropHit,HV_filepath):
     outputMask = ak.broadcast_arrays(False,gemPropHit.mu_propagated_isGEM)[0]
 
     for chamber in HVMask_byChamber:
-        st,re,ch,la = chamberName2_SRCL(chamber)
+        st,re,ch,la,chType = chamberName2_SRCL(chamber)
         ## aggreagate lumisection in ranges
         BadLumis = group_consecutive_elements_in_ranges(np.asarray(HVMask_byChamber[chamber],dtype=np.int16))
-        select_chamber = (gemPropHit.mu_propagated_station == st) & (gemPropHit.mu_propagated_region == re) & (gemPropHit.mu_propagated_chamber == ch) & (gemPropHit.mu_propagated_layer == la) & (gemPropHit.mu_propagated_layer == la)
+        select_chamber = (gemPropHit.mu_propagated_station == st) & (gemPropHit.mu_propagated_region == re) & (gemPropHit.mu_propagated_chamber == ch) & (gemPropHit.mu_propagated_layer == la) & (gemPropHit.mu_propagated_chamberType == chType)
         if -1 in np.unique(BadLumis.flatten()): outputMask = outputMask | select_chamber
         else:
             for _range in BadLumis:
