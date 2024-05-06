@@ -18,8 +18,8 @@ from Utils import (
     iEtaiPhi_2_VFAT,
     recHit2VFAT,
     EfficiencySummary,
-    EOS_OUTPUT_PATH,
-    EOS_INDEX_FILE,
+    OUTPUT_PATH,
+    PHPINDEX_FILE,
     BASE_DIR,
     ExtendEfficiencyCSV,
 )
@@ -56,7 +56,7 @@ configuration = config(abspath(args.config))
 input_par = configuration.parameters
 matching_cuts = configuration.matching_window
 match_by = "residual_rdphi"
-output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
+output_folder_path = Path(OUTPUT_PATH, args.folder_name)
 analysis_timestamp = args.timestamp
 output_name = configuration.analysis_label + analysis_timestamp
 max_evts = configuration.data_input["max_evts"]
@@ -64,35 +64,35 @@ runRange = sorted(configuration.data_input["runRange"])
 ## PARSER
 ## CREATE FOLDERS and COPY FILES
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE, output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
 if args.residuals:
     residual_output_folder_path = Path(output_folder_path, f"Residuals{analysis_timestamp}")
     residual_output_folder_path.mkdir(parents=True, exist_ok=True)
-    copy(EOS_INDEX_FILE, residual_output_folder_path)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, residual_output_folder_path)
 
 DAQStatus_output_folder_path = Path(output_folder_path,"DAQStatus")
 DAQStatus_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,DAQStatus_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,DAQStatus_output_folder_path)
 
 TrackQuality_output_folder_path = Path(output_folder_path,f"TrackQuality{analysis_timestamp}")
 TrackQuality_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQuality_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQuality_output_folder_path)
 
 TrackQualityLayer_output_folder_path = Path(TrackQuality_output_folder_path,"Layer")
 TrackQualityLayer_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualityLayer_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualityLayer_output_folder_path)
 
 TrackQualityResidual_output_folder_path = Path(TrackQuality_output_folder_path,"Residuals")
 TrackQualityResidual_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualityResidual_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualityResidual_output_folder_path)
 
 TrackQualityCharge_output_folder_path = Path(TrackQuality_output_folder_path,"Charge")
 TrackQualityCharge_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualityCharge_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualityCharge_output_folder_path)
 
 TrackQualitySize_output_folder_path = Path(TrackQuality_output_folder_path,"ChamberSize")
 TrackQualitySize_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualitySize_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualitySize_output_folder_path)
 ##
 
 avg_batch_size = 600 if args.test == False else 600 # MB

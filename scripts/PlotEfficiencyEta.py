@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from shutil import copy
-from Utils import EOS_OUTPUT_PATH, EOS_INDEX_FILE
+from Utils import OUTPUT_PATH, PHPINDEX_FILE
 from Statistics import generateClopperPearsonInterval
 from PlottingFunctions import axs_8etasEff_style
 
@@ -47,7 +47,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
+output_folder_path = Path(OUTPUT_PATH, args.folder_name)
 label_list = args.labels if args.labels is not None else args.inputs
 color = plt.cm.rainbow(np.linspace(0, 1, len(label_list)))
 print(output_folder_path)
@@ -56,7 +56,7 @@ if len(label_list) != len(args.inputs):
     sys.exit(0)
 
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE, output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
 #####
 
 fig_efficiency, axs_efficiency = plt.subplots(

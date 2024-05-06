@@ -17,8 +17,8 @@ from Utils import (
     iEtaiPhi_2_VFAT,
     recHit2VFAT,
     EfficiencySummary,
-    EOS_OUTPUT_PATH,
-    EOS_INDEX_FILE,
+    OUTPUT_PATH,
+    PHPINDEX_FILE,
     BASE_DIR,
     ExtendEfficiencyCSV,
 )
@@ -53,20 +53,20 @@ configuration = config(abspath(args.config))
 input_par = configuration.parameters
 matching_cuts = configuration.matching_window
 match_by = "residual_rdphi"
-output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
+output_folder_path = Path(OUTPUT_PATH, args.folder_name)
 output_name = configuration.analysis_label + time.strftime("_%-y%m%d%H%M")
 max_evts = configuration.data_input["max_evts"]
 runRange = sorted(configuration.data_input["runRange"])
 ## PARSER
 ## CREATE FOLDERS and COPY FILES
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE, output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
 residual_output_folder_path = Path(output_folder_path, "Residuals")
 residual_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE, residual_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, residual_output_folder_path)
 DAQStatus_output_folder_path = Path(output_folder_path,"DAQStatus")
 DAQStatus_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,DAQStatus_output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,DAQStatus_output_folder_path)
 ##
 
 avg_batch_size = 1200  # MB

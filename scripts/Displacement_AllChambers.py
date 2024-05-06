@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from shutil import copy
-from Utils import EOS_OUTPUT_PATH, EOS_INDEX_FILE
+from Utils import OUTPUT_PATH, PHPINDEX_FILE
 from Statistics import generateClopperPearsonInterval
 from PlottingFunctions import axs_36chambersEff_style
 import hist
@@ -39,17 +39,17 @@ timestamp = time.strftime("%-y%m%d_%H%M")
 #####
 
 
-output_folder_path = Path(EOS_OUTPUT_PATH, "367758")
+output_folder_path = Path(OUTPUT_PATH, "367758")
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE, output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
 
 current_folder = Path(output_folder_path,f"Displacement")
 current_folder.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,current_folder)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,current_folder)
 
 perChamber = Path(current_folder,f"PerChamber")
 perChamber.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,perChamber)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,perChamber)
 
 
 df_collector = {}

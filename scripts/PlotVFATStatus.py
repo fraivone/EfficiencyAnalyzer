@@ -9,7 +9,7 @@ from matplotlib.ticker import FormatStrFormatter
 plt.set_loglevel("warning")
 import numpy as np
 import guppy
-from Utils import heap_size,EOS_OUTPUT_PATH,EOS_INDEX_FILE
+from Utils import heap_size,OUTPUT_PATH,PHPINDEX_FILE
 from PlottingFunctions import ArrayOfRecords_HistogramBins,unpackVFATStatus_toBin,OHStatus_toBin
 from config_parser import config
 import argparse
@@ -26,12 +26,12 @@ parser.add_argument('--folder_name', type=str , help="Output folder name",requir
 args = parser.parse_args()
 
 ## CREATE FOLDERS and COPY FILES
-output_folder_path = Path(EOS_OUTPUT_PATH,args.folder_name)
+output_folder_path = Path(OUTPUT_PATH,args.folder_name)
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,output_folder_path)
 output_folder_path = Path(output_folder_path,"DAQStatus")
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,output_folder_path)
 ## 
 
 the_heap = guppy.hpy()

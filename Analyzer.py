@@ -19,8 +19,8 @@ from Utils import (
     iEta_2_chamberType,
     recHit2VFAT,
     EfficiencySummary,
-    EOS_OUTPUT_PATH,
-    EOS_INDEX_FILE,
+    OUTPUT_PATH,
+    PHPINDEX_FILE,
     BASE_DIR,
     ExtendEfficiencyCSV,
 )
@@ -57,7 +57,7 @@ configuration = config(abspath(args.config))
 input_par = configuration.parameters
 matching_cuts = configuration.matching_window
 match_by = "residual_rdphi"
-output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
+output_folder_path = Path(OUTPUT_PATH, args.folder_name)
 analysis_timestamp = args.timestamp
 output_name = configuration.analysis_label + analysis_timestamp
 max_evts = configuration.data_input["max_evts"]
@@ -66,35 +66,35 @@ runRange = sorted(configuration.data_input["runRange"])
 
 ## CREATE FOLDERS and COPY FILES
 output_folder_path.mkdir(parents=True, exist_ok=True)
-#file_index= str(EOS_INDEX_FILE).split("/")[-1]
+#file_index= str(PHPINDEX_FILE).split("/")[-1]
 #if not Path(join(output_folder_path,file_index)).is_file():
-copy(EOS_INDEX_FILE, output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
 
 
 if args.residuals:
     residual_output_folder_path = Path(output_folder_path, f"Residuals{analysis_timestamp}")
     residual_output_folder_path.mkdir(parents=True, exist_ok=True)
-    copy(EOS_INDEX_FILE, residual_output_folder_path)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, residual_output_folder_path)
 
-TrackQuality_output_folder_path = Path(output_folder_path,f"TrackQuality{analysis_timestamp}")
-TrackQuality_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQuality_output_folder_path)
+    TrackQuality_output_folder_path = Path(output_folder_path,f"TrackQuality{analysis_timestamp}")
+    TrackQuality_output_folder_path.mkdir(parents=True, exist_ok=True)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQuality_output_folder_path)
+    
+    TrackQualityLayer_output_folder_path = Path(TrackQuality_output_folder_path,"Layer")
+    TrackQualityLayer_output_folder_path.mkdir(parents=True, exist_ok=True)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualityLayer_output_folder_path)
 
-TrackQualityLayer_output_folder_path = Path(TrackQuality_output_folder_path,"Layer")
-TrackQualityLayer_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualityLayer_output_folder_path)
+    TrackQualityResidual_output_folder_path = Path(TrackQuality_output_folder_path,"Residuals")
+    TrackQualityResidual_output_folder_path.mkdir(parents=True, exist_ok=True)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualityResidual_output_folder_path)
 
-TrackQualityResidual_output_folder_path = Path(TrackQuality_output_folder_path,"Residuals")
-TrackQualityResidual_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualityResidual_output_folder_path)
+    TrackQualityCharge_output_folder_path = Path(TrackQuality_output_folder_path,"Charge")
+    TrackQualityCharge_output_folder_path.mkdir(parents=True, exist_ok=True)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualityCharge_output_folder_path)
 
-TrackQualityCharge_output_folder_path = Path(TrackQuality_output_folder_path,"Charge")
-TrackQualityCharge_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualityCharge_output_folder_path)
-
-TrackQualitySize_output_folder_path = Path(TrackQuality_output_folder_path,"ChamberSize")
-TrackQualitySize_output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,TrackQualitySize_output_folder_path)
+    TrackQualitySize_output_folder_path = Path(TrackQuality_output_folder_path,"ChamberSize")
+    TrackQualitySize_output_folder_path.mkdir(parents=True, exist_ok=True)
+    if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,TrackQualitySize_output_folder_path)
 ##
 
 avg_batch_size = 600 # MB
@@ -191,36 +191,50 @@ def main():
 
 
     for batch_index, b in enumerate(batches):
-        if max_evts != -1 and total_events > max_evts:
-            logger.warning(f"Processed at least {max_evts} events, more than max_evt option. Exiting loop")
+        if max_evts != -1 and total_events >= max_evts:
+            logger.warning(f"Processed at least {max_evts} events, hitting the max_evt cap. Exiting loop")
             break
 
         logger.info(f"Processing file batch {batch_index+1}/{len(batches)}")
         logger.debug(f" Loading branches into awkward arrays")
         event = uproot.concatenate(b, filter_name="*event*")
         heap_size(the_heap, "after loading the event branch")
-        runNumber_mask = (event.event_runNumber >= runRange[0]) & (event.event_runNumber <= runRange[1])
-        if ak.sum(runNumber_mask) == 0:
-            logger.warning(f"Skipping current batch due to run number not in range")
-            del event
-            print()
-            continue  ## Run numbers out of range  in this file batch
+
         gemRecHit = uproot.concatenate(b, filter_name=branches_rechit)
         heap_size(the_heap, "after loading the rechit branch")
         gemPropHit = uproot.concatenate(b, filter_name=branches_prophit)
         heap_size(the_heap, "after loading the prophit branch")
         gemOHStatus = uproot.concatenate(b, filter_name="*gemOHStatus*")
         heap_size(the_heap, "after loading the gemohstatus branch")
-        logger.info(f"\033[4m\033[1m{len(event)} evts\033[0m")
 
-        total_events += len(event)
-
+        runNumber_mask = (event.event_runNumber >= runRange[0]) & (event.event_runNumber <= runRange[1])
+        if ak.sum(runNumber_mask) == 0:
+            logger.warning(f"Skipping current batch due to run number not in range")
+            del event
+            print()
+            continue  ## Run numbers out of range  in this file batch
         logger.debug(f" Selecting on run number")
         gemPropHit = gemPropHit[runNumber_mask]
         gemRecHit = gemRecHit[runNumber_mask]
         gemOHStatus = gemOHStatus[runNumber_mask]
         event = event[runNumber_mask]
         heap_size(the_heap, "after filtering on run number")
+
+
+        ## skimming on nevents
+        n_events = len(event)
+        if total_events + n_events > max_evts and max_evts != -1:
+            select = max_evts - total_events
+
+            event = event[0:select]
+            gemRecHit = gemRecHit[0:select]
+            gemPropHit = gemPropHit[0:select]
+            gemOHStatus = gemOHStatus[0:select]
+            total_events += select
+        else:
+            total_events += n_events
+        logger.info(f"\033[4m\033[1m{len(event)} evts\033[0m")
+        
 
         logger.debug(f" Add event info in the gemPropHit,gemRecHit,gemOHStatus arrays")
         gemPropHit["prop_eventNumber"] = ak.broadcast_arrays(event.event_eventNumber, gemPropHit["mu_propagated_isGEM"])[0]
@@ -481,7 +495,14 @@ def main():
 
 
     if matched_collector is not None and propagated_collector is not None:
-        logger.info(f"AVG Efficiency: {ak.sum(ak.num(matched_collector.prop_etaID,axis=-1))}/{ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))} = {ak.sum(ak.count(matched_collector.prop_etaID,axis=-1))/ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))}")
+        for station in [0,1,2]:
+            temp_m = matched_collector[matched_collector['gemRecHit_station']==station]
+            temp_p = propagated_collector[propagated_collector['mu_propagated_station']==station]
+            temp_den = ak.sum(ak.num(temp_p.prop_etaID,axis=-1))
+            if temp_den!= 0:
+                logger.info(f"AVG Efficiency station {station}: {ak.sum(ak.num(temp_m.prop_etaID,axis=-1))}/{temp_den} = {ak.sum(ak.count(temp_m.prop_etaID,axis=-1))/temp_den}")
+            else:
+                logger.info(f"AVG Efficiency station {station}: NO HITS")
     cutSummary_collector = {k: v for k, v in sorted(cutSummary_collector.items(), key=lambda item: item[1], reverse=True)}
     logger.info(f"")
     logger.info(f"Breakdown table with cuts")

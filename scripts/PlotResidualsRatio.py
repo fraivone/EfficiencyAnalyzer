@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from shutil import copy
-from Utils import EOS_OUTPUT_PATH, EOS_INDEX_FILE
+from Utils import OUTPUT_PATH, PHPINDEX_FILE
 from Statistics import generateClopperPearsonInterval
 from PlottingFunctions import axs_36chambersEff_style
 import hist
@@ -31,17 +31,17 @@ args = parser.parse_args()
 
 inputs = args.inputs
 
-output_folder_path = Path(EOS_OUTPUT_PATH, args.folder_name)
+output_folder_path = Path(OUTPUT_PATH, args.folder_name)
 output_folder_path.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE, output_folder_path)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
 
 output_folder_residualratio = Path(output_folder_path,f"Residuals_Ratio")
 output_folder_residualratio.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,output_folder_residualratio)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,output_folder_residualratio)
 
 current_folder = Path(output_folder_residualratio,timestamp)
 current_folder.mkdir(parents=True, exist_ok=True)
-copy(EOS_INDEX_FILE,current_folder)
+if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE,current_folder)
 
 
 file = open(Path(current_folder,"Info.txt"),'w')

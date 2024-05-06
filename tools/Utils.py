@@ -1,4 +1,5 @@
 import awkward as ak
+from os import environ
 #import math as math
 import numpy as np
 import numba
@@ -8,10 +9,15 @@ from pathlib import Path
 from typing import List
 from Statistics import generateClopperPearsonInterval
 
-EOS_OUTPUT_PATH = Path("/eos/user/c/cgalloni/www/P5_Operations_test/")
-BASE_DIR = Path(__file__).parent.parent
-EOS_INDEX_FILE = Path("/eos/user/c/cgalloni/www/Plots/index.php")
 
+
+OUTPUT_PATH = environ.get("OUTPUT_PATH","")
+PHPINDEX_FILE = environ.get("INDEXPHP","")
+BASE_DIR = Path(__file__).parent.parent
+if OUTPUT_PATH == "":
+    OUTPUT_PATH = BASE_DIR/"data/output/"
+if PHPINDEX_FILE == "":
+    PHPINDEX_FILE = None
 
 logger = default_logger.getLogger(__name__)
 
@@ -100,7 +106,7 @@ def EfficiencySummary(matched, prop) -> pd.DataFrame:
     prop_df = npArray_2_dataframe(prop_aggregate, "propHit", columns)
 
     df_merge = pd.merge(match_df, prop_df, how="outer", on=columns)
-    df_merge.to_csv("Debug.txt", sep=";", index=False)
+    #df_merge.to_csv("Debug.txt", sep=";", index=False)
     ## transforming back
     df_merge["Station"] += 1
     df_merge["Region"] = df_merge["Region"] * 2 - 1
