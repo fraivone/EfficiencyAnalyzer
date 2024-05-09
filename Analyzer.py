@@ -134,16 +134,10 @@ def main():
         "gemRecHit_chamber",
         "gemRecHit_layer",
         "gemRecHit_etaPartition",
-        "gemRecHit_g_r",
-        "gemRecHit_loc_x",
-        "gemRecHit_loc_y",
-        "gemRecHit_g_x",
-        "gemRecHit_g_y",
-        "gemRecHit_g_z",
         "gemRecHit_g_phi",
         "gemRecHit_firstClusterStrip",
-        "gemRecHit_cluster_size",
         "gemRecHit_station",
+        "gemRecHit_cluster_size",
     ]
     branches_prophit = [
         "mu_propagated_charge",
@@ -153,24 +147,14 @@ def main():
         "mu_propagated_layer",
         "mu_propagated_etaP",
         "mu_propagated_strip",
-        "mu_propagated_Outermost_z",
         "mu_propagated_isME11",
-        "mu_propagated_isRPC",
         "mu_propagatedGlb_r",
-        "mu_propagatedLoc_x",
-        "mu_propagatedLoc_y",
-        "mu_propagatedLoc_phi",
-        "mu_propagatedGlb_x",
-        "mu_propagatedGlb_y",
-        "mu_propagatedGlb_z",
         "mu_propagatedGlb_phi",
         "mu_propagatedGlb_errR",
         "mu_propagatedGlb_errPhi",
         "mu_propagatedLoc_dirX",
         "mu_propagatedLoc_dirY",
-        "mu_propagatedLoc_dirZ",
         "mu_propagated_pt",
-        "mu_propagated_isGEM",
         "mu_propagated_TrackNormChi2",
         "mu_propagated_nSTAHits",
         "mu_propagated_nME1hits",
@@ -236,8 +220,8 @@ def main():
         
 
         logger.debug(f" Add event info in the gemPropHit,gemRecHit,gemOHStatus arrays")
-        gemPropHit["prop_eventNumber"] = ak.broadcast_arrays(event.event_eventNumber, gemPropHit["mu_propagated_isGEM"])[0]
-        gemPropHit["mu_propagated_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock, gemPropHit["mu_propagated_isGEM"])[0]
+        gemPropHit["prop_eventNumber"] = ak.broadcast_arrays(event.event_eventNumber, gemPropHit["mu_propagated_pt"])[0]
+        gemPropHit["mu_propagated_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock, gemPropHit["mu_propagated_pt"])[0]
         gemRecHit["rec_eventNumber"] = ak.broadcast_arrays(event.event_eventNumber, gemRecHit["gemRecHit_chamber"])[0]
         gemRecHit["gemRecHit_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock, gemRecHit["gemRecHit_chamber"])[0]
         gemOHStatus["gemOHStatus_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock, gemOHStatus["gemOHStatus_station"])[0]
@@ -279,17 +263,17 @@ def main():
 
         logger.debug(f" Adding propHit VFAT")
         # GE11 approach to VFAT extrapolation
-        gemPropHit["prophit_cosine"] = gemPropHit.mu_propagatedLoc_x / gemPropHit.mu_propagatedGlb_r
-        gemPropHit["mu_propagated_phiP"] = (
-            (gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[0]) * 0 +
-            ((gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[1]) & (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[0]))* 1 +
-            (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[1]) * 2
-        )
+        # gemPropHit["prophit_cosine"] = gemPropHit.mu_propagatedLoc_x / gemPropHit.mu_propagatedGlb_r
+        # gemPropHit["mu_propagated_phiP"] = (
+        #     (gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[0]) * 0 +
+        #     ((gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[1]) & (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[0]))* 1 +
+        #     (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[1]) * 2
+        # )
 
 
         # if I know the strip number i should get the "phiP" easily as the integer devision by 128 for GE11 - how is GE21 mapped?
  
-        gemPropHit["mu_propagated_phiP"] = ak.values_astype(gemPropHit["mu_propagated_phiP"], np.short)
+        #gemPropHit["mu_propagated_phiP"] = ak.values_astype(gemPropHit["mu_propagated_phiP"], np.short)
         #gemPropHit["mu_propagated_VFAT"] = iEtaiPhi_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_phiP)
         
         gemPropHit["mu_propagated_VFAT"] = iEtaStrip_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_strip, gemPropHit.mu_propagated_station)

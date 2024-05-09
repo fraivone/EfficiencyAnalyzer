@@ -201,7 +201,7 @@ def group_consecutive_elements_in_ranges(array):
 ## returns a filtering mask that excludes the prophits in a given LS if it was a LS with bad HV
 def calcHV_mask(gemPropHit,HV_filepath):
     HVMask_byChamber = import_HVmask(HV_filepath)
-    outputMask = ak.broadcast_arrays(False,gemPropHit.mu_propagated_isGEM)[0]
+    outputMask = ak.broadcast_arrays(False,gemPropHit.mu_propagated_pt)[0]
 
     for chamber in HVMask_byChamber:
         st,re,ch,la,chType = chamberName2_SRCL(chamber)
