@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from typing import List
 import pandas as pd
 
+GE21PlottableChambers = [ #(Station,region,chamber,layer)
+                          [2,1,16,1],  #DEMONSTRATOR
+                          [2,-1,16,1],
+                          [2,-1,18,1]
+]
+
 @jit(float64[:](float64[:], int64), cache=True, nopython=True)
 def get_bin_edges(a, bins):
     bin_edges = np.zeros((bins + 1,), dtype=np.float64)
@@ -181,6 +187,22 @@ def axs_36chambersEff_style(axs):
     axs.grid(which="major")
     return axs
 
+def axs_4GE21modulesEff_style(axs):
+    axs.legend(loc="best", prop={"size": 20})
+    axs.set_xlabel("Module", loc="right", size=20)
+    axs.set_ylabel("Muon Efficiency", loc="center", size=20)
+    # Major ticks
+    axs.set_xticks(np.arange(1, 5, 1))
+    axs.set_yticks(np.arange(0, 1.2, 0.2))
+    # Labels for major ticks
+    axs.set_xticklabels(np.arange(1, 5, 1), size=15)
+    axs.set_yticklabels(np.arange(0, 1.2, 0.2), size=15)
+    axs.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    # Minor ticks
+    axs.set_xticks(np.arange(0.5, 5.5, 1), minor=True)
+    # Gridlines based on minor ticks
+    axs.grid(which="major")
+    return axs
 
 def axs_8etasEff_style(axs):
     axs.legend(loc="lower left", prop={"size": 20})
