@@ -120,21 +120,20 @@ if __name__ == '__main__':
     fig_GE21efficiency, axs_GE21efficiency = plt.subplots(nrows=len(GE21PlottableChambers), ncols=1, figsize=(10, 15), layout="constrained")
     axs_GE21efficiency = axs_GE21efficiency.flatten()
 
-    ### GE11
-    station = 1
     for index, file_path in enumerate(args.inputs):
         df = pd.read_csv(file_path, sep=",")
         df = df[df["propHit"] != 0]
+
+        ### GE11
         for idx, (region, layer) in enumerate([(-1, 1), (1, 1), (-1, 2), (1, 2)]):
             temp_df = df[(df.Region == region) & (df.Layer == layer)]
-            axs_GE11efficiency[idx] = plotGE11wheel(temp_df[temp_df.Station == station], axs_GE11efficiency[idx], colors[index], label_list[index], f"GE{'+' if region>0 else '-'}{station}1 Ly{layer}",)
+            axs_GE11efficiency[idx] = plotGE11wheel(temp_df[temp_df.Station == 1], axs_GE11efficiency[idx], colors[index], label_list[index], f"GE{'+' if region>0 else '-'}11 Ly{layer}",)
 
-    ### GE21
-    for idx, chID in enumerate(GE21PlottableChambers):
-        query_ch = f"(Station=={chID[0]} & Region=={chID[1]} & Chamber=={chID[2]} & Layer=={chID[3]})"
-        temp_df = df.query(query_ch)
-        plotGE21chamber(temp_df, axs_GE21efficiency[idx], colors[0], label_list[0], f"GE{chID[0]}1-{'P' if chID[1]>0 else 'M'}-{chID[2]}L{chID[3]}")
-
+        ### GE21
+        for idx, chID in enumerate(GE21PlottableChambers):
+            query_ch = f"(Station=={chID[0]} & Region=={chID[1]} & Chamber=={chID[2]} & Layer=={chID[3]})"
+            temp_df = df.query(query_ch)
+            plotGE21chamber(temp_df, axs_GE21efficiency[idx], colors[index], label_list[index], f"GE{chID[0]}1-{'P' if chID[1]>0 else 'M'}-{chID[2]}L{chID[3]}")
 
     ## apply plot style
     axs_GE11efficiency = np.array(list(map(axs_36chambersEff_style, axs_GE11efficiency)))
