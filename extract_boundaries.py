@@ -15,7 +15,7 @@ python3 extract_boundaries.py <ntuple_path>
 
 branches_prophit = ["mu_propagated_station", "mu_propagated_region","mu_propagated_chamber","mu_propagated_layer","mu_propagated_etaP","mu_propagated_EtaPartition_centerX","mu_propagated_EtaPartition_centerY","mu_propagated_EtaPartition_rMax","mu_propagated_EtaPartition_rMin","mu_propagated_EtaPartition_phiMax","mu_propagated_EtaPartition_phiMin"]
 upfile = uproot.open(sys.argv[1])
-tree = upfile["muNtupleProducer/MuDPGTree;11"]
+tree = upfile["muNtupleProducer/MuDPGTree"]
 gemPropHit = tree.arrays(filter_name=branches_prophit)
 gemPropHit["etaID"] =  (2**17 - 1) & gemPropHit[:].mu_propagated_chamber << 11 | (gemPropHit[:].mu_propagated_etaP << 6) | (gemPropHit[:].mu_propagated_station << 4) | (gemPropHit[:].mu_propagated_layer << 1) | (abs(gemPropHit[:].mu_propagated_region - 1) // 2)
 
