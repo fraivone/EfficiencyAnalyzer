@@ -74,7 +74,7 @@ def main():
 
     for batch_index,b in enumerate(batches):
         if max_evts!=-1 and total_events>max_evts: 
-            logging.warning(f"Processed at least {max_evts} events, more than max_evt option. Exiting loop")
+            logger.warning(f"Processed at least {max_evts} events, more than max_evt option. Exiting loop")
             break
         logger.info(f"Processing file batch {batch_index+1}/{len(batches)}")
         event =  uproot.concatenate(b,filter_name="*event*") 
