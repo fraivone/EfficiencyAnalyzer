@@ -443,7 +443,7 @@ def main():
 
         logger.debug(f" Cut on residuals for efficiency")
         best_matches = best_match(compatibleHitsArray, match_by)
-        accepted_hits = best_matches[best_matches[match_by] < matching_cuts[match_by]]
+        accepted_hits = best_matches[abs(best_matches[match_by]) < matching_cuts[match_by]]
         accepted_hits = accepted_hits[ak.num(accepted_hits.prop_etaID, axis=-1) > 0]
         heap_size(the_heap, " selection based on residuals")
 
