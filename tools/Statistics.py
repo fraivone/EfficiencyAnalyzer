@@ -17,6 +17,22 @@ def generateClopperPearsonInterval(num: int, den: int) -> Tuple[float, float]:
 
     return float(lowerLimit), float(upperLimit)
 
+def AddConfidenceIntervals(efficiency_df):
+    efficiency_df["eff_lower_limit"] = efficiency_df.apply(
+        lambda x: generateClopperPearsonInterval(x["matchedRecHit"], x["propHit"])[0],axis=1)
+        
+    efficiency_df["eff_upper_limit"] = efficiency_df.apply(
+        lambda x: generateClopperPearsonInterval(x["matchedRecHit"], x["propHit"])[1],axis=1)
+    
+    efficiency_df["avg_eff"] = efficiency_df.apply(lambda x: x["matchedRecHit"] / x["propHit"], axis=1)
+    
+    efficiency_df["eff_low_error"] = efficiency_df["avg_eff"] - efficiency_df["eff_lower_limit"]
+    efficiency_df["eff_up_error"] = efficiency_df["eff_upper_limit"] - efficiency_df["avg_eff"]
+    
+    return efficiency_df
+
+
+
 def stdError(avg1,d1,avg2,d2):
     stdError = math.sqrt( avg1*(1-avg1)/d1 + avg2*(1-avg2)/d2 )
     return stdError

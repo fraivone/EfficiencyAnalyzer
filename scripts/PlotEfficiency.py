@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 from shutil import copy
 from Utils import OUTPUT_PATH, PHPINDEX_FILE
-from Statistics import generateClopperPearsonInterval
+from Statistics import AddConfidenceIntervals
 from PlottingFunctions import axs_36chambersEff_style,axs_4GE21modulesEff_style,GE21PlottableChambers
 
 aggregation_functions = {
@@ -18,21 +18,6 @@ aggregation_functions = {
         "matchedRecHit": "sum",
         "propHit": "sum",
         }
-
-def AddConfidenceIntervals(efficiency_df):
-    efficiency_df["eff_lower_limit"] = efficiency_df.apply(
-        lambda x: generateClopperPearsonInterval(x["matchedRecHit"], x["propHit"])[0],axis=1)
-        
-    efficiency_df["eff_upper_limit"] = efficiency_df.apply(
-        lambda x: generateClopperPearsonInterval(x["matchedRecHit"], x["propHit"])[1],axis=1)
-    
-    efficiency_df["avg_eff"] = efficiency_df.apply(lambda x: x["matchedRecHit"] / x["propHit"], axis=1)
-    
-    efficiency_df["eff_low_error"] = efficiency_df["avg_eff"] - efficiency_df["eff_lower_limit"]
-    efficiency_df["eff_up_error"] = efficiency_df["eff_upper_limit"] - efficiency_df["avg_eff"]
-    
-    return efficiency_df
-
 
 def plotGE11wheel(df_GE11wheel, ax, _color, label, title):
     global aggregation_functions
