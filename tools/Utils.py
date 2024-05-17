@@ -125,6 +125,13 @@ def mergeEfficiencyCSV(df_list: List[pd.DataFrame]) -> pd.DataFrame:
     return s
 
 
+def ExtendROOTFile(rootFile, HitsDataFrame):
+    if not rootFile.classnames(): # root file is empty
+        rootFile["tree"] = HitsDataFrame.reset_index(drop=True, inplace=False)
+    else:
+        rootFile["tree"].extend(HitsDataFrame.reset_index(drop=True, inplace=False))
+    return rootFile
+
 def ExtendEfficiencyCSV(new_df: pd.DataFrame, existing_csv_path: Path) -> None:
     """
     Extended the efficiency csv by merging the new_df
