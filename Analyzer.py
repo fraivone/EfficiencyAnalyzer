@@ -10,7 +10,7 @@ import uproot
 import numpy as np
 import matplotlib.pyplot as plt
 import hist
-
+import pandas as pd
 import guppy
 
 from Utils import (
@@ -22,6 +22,7 @@ from Utils import (
     OUTPUT_PATH,
     PHPINDEX_FILE,
     ExtendEfficiencyCSV,
+    ExtendROOTFile,
 )
 from MaskFunctions import (
     calcMuonHit_masks,
@@ -49,6 +50,7 @@ parser.add_argument("config", help="Analysis description file")
 parser.add_argument("--folder_name", type=str, help="Output folder name", required=False, default="")
 parser.add_argument("--residuals", help="Enable plotting residuals", required=False, action="store_true", default=False)
 parser.add_argument("--timestamp", type=str, help="label for unique analysis results", required=False, default=time.strftime("_%-y%m%d%H%M"))
+parser.add_argument("--storeROOT", help="Enable the storing of best matches as a ROOT file", required=False, action="store_true", default=False)
 args = parser.parse_args()
 
 
@@ -68,7 +70,6 @@ output_folder_path.mkdir(parents=True, exist_ok=True)
 #file_index= str(PHPINDEX_FILE).split("/")[-1]
 #if not Path(join(output_folder_path,file_index)).is_file():
 if PHPINDEX_FILE is not None: copy(PHPINDEX_FILE, output_folder_path)
-
 
 if args.residuals:
     residual_output_folder_path = Path(output_folder_path, f"Residuals{analysis_timestamp}")
@@ -97,12 +98,16 @@ if args.residuals:
 ##
 
 avg_batch_size = 600 # MB
-heap_dump_size = 500  # MB above which efficiency summary gets calculated from propagated_collector and matched_collector and dumped to file
+
 total_events = 0
 
 def main():
     heap_size(the_heap, "starting")
 
+    ROOTFile = None
+    if args.storeROOT:
+        ROOTFile =  uproot.recreate(OUTPUT_PATH / f"{output_name}.root")
+        
     HVmask_path = configuration.data_input["HVMask_path"]
     files = [
         join(folder, file)
@@ -116,9 +121,7 @@ def main():
     # files = [f for f in files if runRange[0] in RunNumber_Map[f]]
     ### reRECO only
     AVG_FileSize = sum([getsize(f) for f in files]) / len(files)
-    matched_collector = None
-    propagated_collector = None
-    compatible_collector = None
+    
     cutSummary_collector = {}
 
     files_per_batch = math.ceil((avg_batch_size * 2 ** (20)) / AVG_FileSize)
@@ -203,7 +206,9 @@ def main():
         event = event[runNumber_mask]
         heap_size(the_heap, "after filtering on run number")
 
+        #gemPropHit["ImpactAngle"] = np.arccos(np.sqrt(gemPropHit["mu_propagatedLoc_dirX"]**2 + gemPropHit["mu_propagatedLoc_dirY"]**2))*180/np.pi
 
+        
         ## skimming on nevents
         n_events = len(event)
         if total_events + n_events > max_evts and max_evts != -1:
@@ -221,6 +226,7 @@ def main():
 
         logger.debug(f" Add event info in the gemPropHit,gemRecHit,gemOHStatus arrays")
         gemPropHit["prop_eventNumber"] = ak.broadcast_arrays(event.event_eventNumber, gemPropHit["mu_propagated_pt"])[0]
+        gemPropHit["prop_RunNumber"] = ak.broadcast_arrays(event.event_runNumber, gemPropHit["mu_propagated_pt"])[0]
         gemPropHit["mu_propagated_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock, gemPropHit["mu_propagated_pt"])[0]
         gemRecHit["rec_eventNumber"] = ak.broadcast_arrays(event.event_eventNumber, gemRecHit["gemRecHit_chamber"])[0]
         gemRecHit["gemRecHit_lumiblock"] = ak.broadcast_arrays(event.event_lumiBlock, gemRecHit["gemRecHit_chamber"])[0]
@@ -447,59 +453,56 @@ def main():
         accepted_hits = accepted_hits[ak.num(accepted_hits.prop_etaID, axis=-1) > 0]
         heap_size(the_heap, " selection based on residuals")
 
-        matched_collector = (ak.concatenate([matched_collector, accepted_hits]) if matched_collector is not None else accepted_hits)
-        #print ("matched_collector ", matched_collector ) 
-        propagated_collector = (ak.concatenate([propagated_collector, selectedPropHit]) if propagated_collector is not None else selectedPropHit)
-        #print ("propagated_collector ", propagated_collector )
-        compatible_collector = (ak.concatenate([compatible_collector, best_matches]) if compatible_collector is not None else best_matches)
-
         logger.debug2(f"Number of good prophits: {len(selectedPropHit)}")
         logger.debug2(f"Number of cartesian prophits (contains duplicates): {ak.sum(ak.num(compatibleHitsArray.mu_propagatedGlb_phi,axis=-1))}")
         logger.debug2(f"Number of matched prophits: {ak.sum(ak.num(accepted_hits.prop_etaID,axis=-1))}")
-        logger.debug(f" matched collector {ak.sum(ak.num(matched_collector.prop_etaID,axis=-1))}")
-        logger.debug(f" propagated_collector {ak.sum(ak.num(propagated_collector.prop_etaID,axis=-1))}")
+
 
         heap_size(the_heap, "before cleaning")
-        del selectedPropHit
-        del selectedRecHit
-        del event
-        heap_size(the_heap, "at the loop end")
-        ## If the RAM goes full the process is terminated. Contain heap size by regurarly dumping the efficiency collectors
-        if the_heap.heap().size / 2**20 > heap_dump_size:
-            logger.warning(f"Heap size exceeds {heap_dump_size} MB, dumping collectors into temporary files")
-            ExtendEfficiencyCSV(EfficiencySummary(matched_collector, propagated_collector),OUTPUT_PATH / f"{output_name}.csv")
-            matched_collector, propagated_collector = None, None
-            heap_size(the_heap, "after dumping the efficiency collectors")
-            if the_heap.heap().size / 2**20 > heap_dump_size:
-                logger.error(f"After dumping the collectors heap size is still > {heap_dump_size}")
+        ## Dump array summary after processing each batch
+        ExtendEfficiencyCSV(EfficiencySummary(accepted_hits,selectedPropHit),OUTPUT_PATH / f"{output_name}.csv")
+        logger.info("Efficiency csv file updated")
 
-        #Selects just the first batch of events for tests
-        #if batch_index == 0: break
+        if args.storeROOT:
+            """
+            Store best matche hits that passed the cut window in a 
+            ROOT file for future usage. 
+            """
+            df_prop = ak.to_dataframe(selectedPropHit)
+            df_accepted = ak.to_dataframe(accepted_hits)
+            df_output = pd.merge(df_prop, df_accepted,  how='left', left_on=selectedPropHit.fields, right_on = selectedPropHit.fields)
+            ROOTFile = ExtendROOTFile(ROOTFile, df_output)
 
 
-    if matched_collector is not None and propagated_collector is not None:
         for station in [0,1,2]:
-            temp_m = matched_collector[matched_collector['gemRecHit_station']==station]
-            temp_p = propagated_collector[propagated_collector['mu_propagated_station']==station]
+            temp_m = accepted_hits[accepted_hits['gemRecHit_station']==station]
+            temp_p = selectedPropHit[selectedPropHit['mu_propagated_station']==station]
             temp_den = ak.sum(ak.num(temp_p.prop_etaID,axis=-1))
             if temp_den!= 0:
                 logger.info(f"AVG Efficiency station {station}: {ak.sum(ak.num(temp_m.prop_etaID,axis=-1))}/{temp_den} = {ak.sum(ak.count(temp_m.prop_etaID,axis=-1))/temp_den}")
             else:
                 logger.info(f"AVG Efficiency station {station}: NO HITS")
-    cutSummary_collector = {k: v for k, v in sorted(cutSummary_collector.items(), key=lambda item: item[1], reverse=True)}
-    logger.info(f"")
-    logger.info(f"Breakdown table with cuts")
-    logger.info(f"{'Label':<20}\t{'Survived Hits':>15}\t{'% Survived':>20}")
-    for k in cutSummary_collector:
-        logger.info(f"{k:<20}\t{cutSummary_collector[k]:>15}\t{round(cutSummary_collector[k]*100/cutSummary_collector['no_Mask'],2):>19}%")
-    print()
-    return matched_collector, propagated_collector, compatible_collector
+
+
+        cutSummary_collector = {k: v for k, v in sorted(cutSummary_collector.items(), key=lambda item: item[1], reverse=True)}
+        logger.info(f"")
+        logger.info(f"Breakdown table with cuts")
+        logger.info(f"{'Label':<20}\t{'Survived Hits':>15}\t{'% Survived':>20}")
+        for k in cutSummary_collector:
+            logger.info(f"{k:<20}\t{cutSummary_collector[k]:>15}\t{round(cutSummary_collector[k]*100/cutSummary_collector['no_Mask'],2):>19}%")
+        print()
+
+        
+        del selectedPropHit
+        del selectedRecHit
+        del accepted_hits
+        del event
+        heap_size(the_heap, "at the loop end")
+        
 
 if __name__ == "__main__":
 
-    matched, prop, compatible_collector = main()
-
-    compatible_collector["ImpactAngle"] = np.arccos(np.sqrt(compatible_collector["mu_propagatedLoc_dirX"]**2 + compatible_collector["mu_propagatedLoc_dirY"]**2))*180/np.pi
+    main()
     ## SAVE CSV WITH RESIDUALS
     # mydf = ak.to_dataframe(compatible_collector)
     # mydf.to_csv(f"{residual_output_folder_path}/test.csv")
@@ -722,34 +725,8 @@ if __name__ == "__main__":
         axs_ly[1].clear()
     ## END PLOT DISTRIBUTION MARCELLO """
 
-    start = time.time()
-    df = EfficiencySummary(matched, prop)
-    logger.info(f"Summary generated in {time.time()-start:.3f} s")
-    ExtendEfficiencyCSV(df, OUTPUT_PATH / f"{output_name}.csv")
-    configuration.dump_config(OUTPUT_PATH / f"{output_name}.yml")
-    if args.residuals:
-        for eta in range(1,9):
-            ### ONLY POSITIVE MUONS
-            logger.warning("Working on positive muons only")
-            tmp_compatible_collector = compatible_collector[(compatible_collector["mu_propagated_charge"] == +1)&(compatible_collector["mu_propagated_etaP"] == eta)]
-            start = time.time()
-            residual_hist, bin_edges = Fill_Histo_Residuals(tmp_compatible_collector, np.array([-matching_cuts[match_by], matching_cuts[match_by]]), 300)
-            logger.info(f"Residuals binned in {time.time()-start:.3f} s")
-
-            start = time.time()
-            Store_Binned_Residuals(residual_hist, bin_edges, residual_output_folder_path, output_name_prefix=f"Eta{eta}_PosiMuons_",enable_plot=False)
-            logger.info(f"Residuals PosiMuons plotted in {time.time()-start:.3f} s")
-
-
-            ### ONLY NEGATIVE MUONS
-            logger.warning("Working on negative muons only")
-            tmp_compatible_collector = compatible_collector[(compatible_collector["mu_propagated_charge"] == -1)&(compatible_collector["mu_propagated_etaP"] == eta)]
-            start = time.time()
-            residual_hist, bin_edges = Fill_Histo_Residuals(tmp_compatible_collector, np.array([-matching_cuts[match_by], matching_cuts[match_by]]), 300)
-            logger.info(f"Residuals binned in {time.time()-start:.3f} s")
-
-            start = time.time()
-            Store_Binned_Residuals(residual_hist, bin_edges, residual_output_folder_path, output_name_prefix=f"Eta{eta}_NegaMuons_",enable_plot=False)
-            logger.info(f"Residuals NegaMuons plotted in {time.time()-start:.3f} s")
-
-    logger.info(f"Timestamp {analysis_timestamp}")
+    # start = time.time()
+    # df = EfficiencySummary(matched, prop)
+    # logger.info(f"Summary generated in {time.time()-start:.3f} s")
+    # ExtendEfficiencyCSV(df, OUTPUT_PATH / f"{output_name}.csv")
+    # configuration.dump_config(OUTPUT_PATH / f"{output_name}.yml")
