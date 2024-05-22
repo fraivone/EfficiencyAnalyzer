@@ -34,6 +34,15 @@ from MaskFunctions import (
     calcHV_mask,
 )
 
+from BranchesSelected import (
+    RechitBranchesToUnpack,
+    ProphitBranchesToUnpack,
+    ROOT_PropHitBranches,
+    ROOT_MatchedHitBranches,
+    ROOT_eventBranches
+)
+    
+
 from AkArray_Operations import find_boundaries, boundaries_translation, best_match
 from PlottingFunctions import Fill_Histo_Residuals, Store_Binned_Residuals
 from config_parser import config
@@ -45,12 +54,12 @@ the_heap = guppy.hpy()
 the_heap.setref()
 
 ## PARSER
-parser = argparse.ArgumentParser(description="Analyzer parser")
+parser = argparse.ArgumentParser(description="Analyzer parser", formatter_class = argparse.RawTextHelpFormatter)
 parser.add_argument("config", help="Analysis description file")
 parser.add_argument("--folder_name", type=str, help="Output folder name", required=False, default="")
 parser.add_argument("--residuals", help="Enable plotting residuals", required=False, action="store_true", default=False)
 parser.add_argument("--timestamp", type=str, help="label for unique analysis results", required=False, default=time.strftime("_%-y%m%d%H%M"))
-parser.add_argument("--storeROOT", help="Enable the storing of best matches as a ROOT file", required=False, action="store_true", default=False)
+parser.add_argument("--storeROOT", help=f"Enable the storing of best matches as a ROOT file. The following branches will be stored in the ROOT file\nROOT_PropHitBranches: {[k for k in ROOT_PropHitBranches] }\nROOT_MatchedHitBranches: {[k for k in ROOT_MatchedHitBranches]}\nROOT_eventBranches: {[k for k in ROOT_eventBranches] }\n ", required=False, action="store_true", default=False)
 args = parser.parse_args()
 
 
@@ -104,9 +113,13 @@ total_events = 0
 def main():
     heap_size(the_heap, "starting")
 
+    rUnpack = RechitBranchesToUnpack
+    pUnpack = ProphitBranchesToUnpack
+    
     ROOTFile = None
     if args.storeROOT:
         ROOTFile =  uproot.recreate(OUTPUT_PATH / f"{output_name}.root")
+        pUnpack = list(set(pUnpack + ROOT_PropHitBranches)) # ensure that the branches to be stored are first unpacked from the ntuples && no duplicates in list
         
     HVmask_path = configuration.data_input["HVMask_path"]
     files = [
@@ -132,41 +145,6 @@ def main():
         f"{len(batches)} batches containing {ak.num(ak.Array(batches))} files (aiming for {avg_batch_size} MB per batch)"
     )
 
-    branches_rechit = [
-        "gemRecHit_region",
-        "gemRecHit_chamber",
-        "gemRecHit_layer",
-        "gemRecHit_etaPartition",
-        "gemRecHit_g_phi",
-        "gemRecHit_firstClusterStrip",
-        "gemRecHit_station",
-        "gemRecHit_cluster_size",
-    ]
-    branches_prophit = [
-        "mu_propagated_charge",
-        "mu_propagated_station",
-        "mu_propagated_region",
-        "mu_propagated_chamber",
-        "mu_propagated_layer",
-        "mu_propagated_etaP",
-        "mu_propagated_strip",
-        "mu_propagated_isME11",
-        "mu_propagatedGlb_r",
-        "mu_propagatedGlb_phi",
-        "mu_propagatedGlb_errR",
-        "mu_propagatedGlb_errPhi",
-        "mu_propagatedLoc_dirX",
-        "mu_propagatedLoc_dirY",
-        "mu_propagated_pt",
-        "mu_propagated_TrackNormChi2",
-        "mu_propagated_nSTAHits",
-        "mu_propagated_nME1hits",
-        "mu_propagated_nME2hits",
-        "mu_propagated_nME3hits",
-        "mu_propagated_nME4hits",
-        "mu_propagated_isME21",
-    ]
-
     GE21_phi_range = 0.3631972
     ## boundaries values for iPhi in terms of cos(loc_x / glb_r)
     GE11_cos_phi_boundaries = (
@@ -186,9 +164,9 @@ def main():
         event = uproot.concatenate(b, filter_name="*event*")
         heap_size(the_heap, "after loading the event branch")
 
-        gemRecHit = uproot.concatenate(b, filter_name=branches_rechit)
+        gemRecHit = uproot.concatenate(b, filter_name=rUnpack)
         heap_size(the_heap, "after loading the rechit branch")
-        gemPropHit = uproot.concatenate(b, filter_name=branches_prophit)
+        gemPropHit = uproot.concatenate(b, filter_name=pUnpack)
         heap_size(the_heap, "after loading the prophit branch")
         gemOHStatus = uproot.concatenate(b, filter_name="*gemOHStatus*")
         heap_size(the_heap, "after loading the gemohstatus branch")
@@ -471,6 +449,7 @@ def main():
             df_prop = ak.to_dataframe(selectedPropHit)
             df_accepted = ak.to_dataframe(accepted_hits)
             df_output = pd.merge(df_prop, df_accepted,  how='left', left_on=selectedPropHit.fields, right_on = selectedPropHit.fields)
+            df_output = df_output[ROOT_MatchedHitBranches+ROOT_PropHitBranches+ROOT_eventBranches]
             ROOTFile = ExtendROOTFile(ROOTFile, df_output)
 
 
