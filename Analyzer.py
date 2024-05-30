@@ -14,6 +14,7 @@ import pandas as pd
 import guppy
 
 from Utils import (
+    get_etaP_boundaries_Y,
     heap_size,
     iEtaStrip_2_VFAT,
     iEta_2_chamberType,
@@ -43,7 +44,7 @@ from BranchesSelected import (
 )
     
 
-from AkArray_Operations import find_boundaries, boundaries_translation, best_match
+from AkArray_Operations import best_match
 from PlottingFunctions import Fill_Histo_Residuals, Store_Binned_Residuals
 from config_parser import config
 from myLogger import logger as logger_default
@@ -240,26 +241,9 @@ def main():
         #gemPropHit = gemPropHit[gemPropHit.mu_propagated_region == 1 ]
         # Removing all GE21 prophits (no additional events removed)
         #heap_size(the_heap, "after filtering out GE21")
-        
-        logger.debug(f" Extracting eta partition boundaries")
-        etaID_boundaries_akarray_pre = ak.Array(map(find_boundaries, gemPropHit.prop_etaID))
-        heap_size(the_heap, "arraying etaP boundaries")
-
-        logger.debug(f" Adding propHit VFAT")
-        # GE11 approach to VFAT extrapolation
-        # gemPropHit["prophit_cosine"] = gemPropHit.mu_propagatedLoc_x / gemPropHit.mu_propagatedGlb_r
-        # gemPropHit["mu_propagated_phiP"] = (
-        #     (gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[0]) * 0 +
-        #     ((gemPropHit["prophit_cosine"] <= GE11_cos_phi_boundaries[1]) & (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[0]))* 1 +
-        #     (gemPropHit["prophit_cosine"] > GE11_cos_phi_boundaries[1]) * 2
-        # )
-
-
-        # if I know the strip number i should get the "phiP" easily as the integer devision by 128 for GE11 - how is GE21 mapped?
- 
-        #gemPropHit["mu_propagated_phiP"] = ak.values_astype(gemPropHit["mu_propagated_phiP"], np.short)
-        #gemPropHit["mu_propagated_VFAT"] = iEtaiPhi_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_phiP)
-        
+                
+        gemPropHit["mu_propagated_etaP_boundary_minY"] = get_etaP_boundaries_Y(gemPropHit.mu_propagated_region,gemPropHit.mu_propagated_station,gemPropHit.mu_propagated_chamber, gemPropHit.mu_propagated_etaP, "min")
+        gemPropHit["mu_propagated_etaP_boundary_maxY"] = get_etaP_boundaries_Y(gemPropHit.mu_propagated_region,gemPropHit.mu_propagated_station,gemPropHit.mu_propagated_chamber, gemPropHit.mu_propagated_etaP, "max")
         gemPropHit["mu_propagated_VFAT"] = iEtaStrip_2_VFAT(gemPropHit.mu_propagated_etaP, gemPropHit.mu_propagated_strip, gemPropHit.mu_propagated_station)
         gemPropHit["mu_propagated_chamberType"]= iEta_2_chamberType(gemPropHit.mu_propagated_etaP,gemPropHit.mu_propagated_layer, gemPropHit.mu_propagated_station)
         gemRecHit["gemRecHit_VFAT"] = recHit2VFAT(
@@ -269,50 +253,14 @@ def main():
             gemRecHit.gemRecHit_station
         )
         gemRecHit["gemRecHit_chamberType"] = iEta_2_chamberType(gemRecHit.gemRecHit_etaPartition, gemRecHit.gemRecHit_layer, gemRecHit.gemRecHit_station)
-        # GE21 approach to VFAT extrapolation TO BE TESTED
-        # gemPropHit["propagated_offset_phi"] =  np.arcsin(  gemPropHit.mu_propagatedLoc_x/gemPropHit.mu_propagatedGlb_r )
-        # gemPropHit["propagated_VFAT"] =  (11 - (gemPropHit.propagated_offset_phi - ak.min(gemPropHit.propagated_offset_phi)) // (GE21_phi_range/6)) - ((gemPropHit.mu_propagated_etaP-1)%4)//2
-        # gemRecHit["gemRecHit_VFAT"] = (11 - ((gemRecHit.gemRecHit_firstClusterStrip+gemRecHit.gemRecHit_cluster_size/2)//64)) - ((gemRecHit.gemRecHit_etaPartition - 1)%4)//2
-        heap_size(the_heap, "after extrapolating on VFATs")
-
         
-        #why do i need to the following? don't I know already the VFAT?
-        """
-        in CMSSW angles are defined in the [-pi,pi] range.
-        PhiMin > PhiMax happens for chambers 19 where phiMin = 174 degrees phiMax = -174.
-        here the fix.
-        find which boundaries have phiMin > phiMAx (index 1 corresponds to phiMin, 0 to phiMax)
-        """
-        logger.debug(f" Calculating masks")
-        logger.debug2(f" Adjusting for angle periodicity")
-        boundary_translation_mask = etaID_boundaries_akarray_pre[..., 1] > etaID_boundaries_akarray_pre[..., 0]
-        ## Generate translation array. For every entry in mask, generate a boundary translation array
-        ## mask is True --> translate by [2 pi , 0 , 0, 0]
-        ## mask is False --> translate by [0 , 0 , 0, 0]
-        ## Then add the aforementioned array of translation arrays to etaID_boundaries_akarray
-        translation_array = ak.Array(map(boundaries_translation, boundary_translation_mask))
-        etaID_boundaries_akarray = etaID_boundaries_akarray_pre + translation_array
-
-        """
-        Since some boundaries phiMax have been translated by 0,2pi , to consistently apply the mask 
-        the same has to be done on mu_propagatedGlb_phi. The operation will then be inverted after
-        applying the mask
-        """
-        propGlbPhi_translation_mask = np.logical_and(boundary_translation_mask, gemPropHit.mu_propagatedGlb_phi < 0)
-        gemPropHit["mu_propagatedGlb_phi"] = gemPropHit.mu_propagatedGlb_phi + propGlbPhi_translation_mask * 2 * np.pi
-        heap_size(the_heap, "after translating the boundaries")
+        heap_size(the_heap, "after extrapolating on VFATs")
 
         logger.debug(f" Calculating selection mask on muonTrack & propagation")
         input_par["gemprophit_array"] = gemPropHit
-        input_par["etaID_boundaries_array"] = etaID_boundaries_akarray
-        
-        #print("etaID_boundaries_akarray ", etaID_boundaries_akarray)
-        #print("etaID_boundaries_akarray[...,1] ", etaID_boundaries_akarray[...,1])
+
         muonTrack_mask = calcMuonHit_masks(**input_par)
         
-        logger.debug2(f" Restoring angle periodicity")
-        gemPropHit["mu_propagatedGlb_phi"] = gemPropHit.mu_propagatedGlb_phi - propGlbPhi_translation_mask * 2 * np.pi
-
         logger.debug(f" Calculating selection mask on VFAT DAQ mask")
         DAQMaskedVFAT_mask = calcDAQMaskedVFAT_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQMaskedVFAT"] = DAQMaskedVFAT_mask
@@ -436,6 +384,7 @@ def main():
         logger.debug2(f"Number of matched prophits: {ak.sum(ak.num(accepted_hits.prop_etaID,axis=-1))}")
 
 
+
         heap_size(the_heap, "before cleaning")
         ## Dump array summary after processing each batch
         ExtendEfficiencyCSV(EfficiencySummary(accepted_hits,selectedPropHit),OUTPUT_PATH / f"{output_name}.csv")
@@ -451,6 +400,7 @@ def main():
             df_output = pd.merge(df_prop, df_accepted,  how='left', left_on=selectedPropHit.fields, right_on = selectedPropHit.fields)
             df_output = df_output[ROOT_MatchedHitBranches+ROOT_PropHitBranches+ROOT_eventBranches]
             ROOTFile = ExtendROOTFile(ROOTFile, df_output)
+
 
 
         for station in [0,1,2]:
