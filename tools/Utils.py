@@ -8,7 +8,7 @@ from myLogger import logger as default_logger
 from pathlib import Path
 from typing import List
 from Statistics import generateClopperPearsonInterval
-
+from EtaPartitionBoundaries_df import df_boundaries
 
 
 
@@ -24,7 +24,14 @@ def heap_size(the_hp, label: str) -> None:
     thp = the_hp.heap()
     logger.memory(f"Heap Size {label}: {thp.size/2**20:.3f} MB")  # type: ignore
     # print(thp.byvia[0:3])
-
+#returns the boundary in Y of a given eta partition from the Boundaries dataframe
+def  get_etaP_boundaries_Y(region, station, chamber, etaP, label):
+    new_array= ak.full_like(etaP, 0)
+    isOdd = chamber%2
+    for index, row in df_boundaries.iterrows():
+        new_array= ak.where( (station==1) & (station==row["station"]) & (isOdd== row["IsOdd"]) & (etaP==row["etaP"]), row[label+"Y"], new_array)
+        new_array= ak.where( (station==2) & (region==row["region"]) &  (station==row["station"]) & (etaP==row["etaP"]), row[label+"Y"], new_array)
+    return  new_array
 
 ## given iEta,iPhi having the same structure, returns VFAT number with consistent structure (i.e. int,int --> int  ; array,array --> array)
 def iEtaiPhi_2_VFAT(iEta, iPhi):

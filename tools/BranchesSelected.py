@@ -24,6 +24,8 @@ ProphitBranchesToUnpack = [
     "mu_propagatedGlb_errPhi",
     "mu_propagatedLoc_dirX",
     "mu_propagatedLoc_dirY",
+    "mu_propagatedLoc_x",
+    "mu_propagatedLoc_y",
     "mu_propagated_pt",
     "mu_propagated_TrackNormChi2",
     "mu_propagated_nSTAHits",
