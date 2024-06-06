@@ -6,10 +6,10 @@ data_input:
 parameters:
   rangePropPhi_Err: !!python/list [0.,0.005]
   rangePropR_Err: !!python/list [0., 1.]
-  range_pT: !!python/list [2.,50.]
-  fiducialY: !!python/float 1
-  fiducialStrip: !!python/float 5
-  rangeChi2: !!python/list [0,4]
+  range_pT: !!python/list [2.,100.]
+  fiducialY: !!python/float 1.5
+  fiducialDPhi: !!python/float 0.0075
+  rangeChi2: !!python/list [0.5,5]
   rangeSTAhits: !!python/list [10,99999999] 
   rangeME1hits: !!python/list [0,99999999]
   rangeME2hits: !!python/list [0,99999999]

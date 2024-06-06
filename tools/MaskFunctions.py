@@ -2,8 +2,8 @@ import awkward as ak
 import numpy as np
 import json
 
-cut_labels = ["rangePropPhi_Err", "rangePropR_Err", "range_pT", "fiducialY", "fiducialStrip", "rangeChi2", "rangeSTAhits", "rangeME1hits", "rangeME2hits", "rangeME3hits", "rangeME4hits"]
-mask_labels = ["no_Mask","overallGood_Mask","isME11_Mask"] + [ k+"_Mask" for k in cut_labels] + ["DAQMaskedVFAT","DAQMissingVFAT", "DAQError","DAQenabledOH","HVMask"]
+cut_labels = ["rangePropPhi_Err", "rangePropR_Err", "range_pT", "fiducialY", "fiducialDphi", "rangeChi2", "rangeSTAhits", "rangeME1hits", "rangeME2hits", "rangeME3hits", "rangeME4hits"]
+mask_labels = ["no_Mask","overallGood_Mask","isMEX1_Mask"] + [ k+"_Mask" for k in cut_labels] + ["DAQMaskedVFAT","DAQMissingVFAT", "DAQError","DAQenabledOH","HVMask"]
 
 GE21Letter_2_Module = {"A":1,"B":2,"C":3,"D":4}
 
@@ -33,14 +33,13 @@ def countNumberOfPropHits(dict_of_masks):
     return output_dict
 
 ## Retruns a dict containing the masks and cuts used
-def calcMuonHit_masks(gemprophit_array, rangePropPhi_Err=[0,99999],rangePropR_Err=[0,99999],range_pT=[0,99999999],fiducialY=0,fiducialStrip=0,rangeChi2=[0,99999999],rangeSTAhits=[0,99999999],rangeME1hits=[0,99999999],rangeME2hits=[0,99999999],rangeME3hits=[0,99999999],rangeME4hits=[0,99999999]):
+def calcMuonHit_masks(gemprophit_array, rangePropPhi_Err=[0,99999],rangePropR_Err=[0,99999],range_pT=[0,99999999],fiducialY=0,fiducialDPhi=0,rangeChi2=[0,99999999],rangeSTAhits=[0,99999999],rangeME1hits=[0,99999999],rangeME2hits=[0,99999999],rangeME3hits=[0,99999999],rangeME4hits=[0,99999999]):
     
     dict_of_masks = {}
     dict_of_masks["rangePropPhi_Err"] = rangePropPhi_Err
     dict_of_masks["rangePropR_Err"] = rangePropR_Err
     dict_of_masks["range_pT"] = range_pT
     dict_of_masks["fiducialY"] = fiducialY
-    dict_of_masks["fiducialStrip"] = fiducialStrip
     dict_of_masks["rangeChi2"] = rangeChi2
     dict_of_masks["rangeSTAhits"] = rangeSTAhits
     dict_of_masks["rangeME1hits"] = rangeME1hits
@@ -61,6 +60,11 @@ def calcMuonHit_masks(gemprophit_array, rangePropPhi_Err=[0,99999],rangePropR_Er
     dict_of_masks["rangeME2hits_Mask"] =  (gemprophit_array.mu_propagated_nME2hits >= rangeME2hits[0]) & (gemprophit_array.mu_propagated_nME2hits <= rangeME2hits[1])
     dict_of_masks["rangeME3hits_Mask"] =  (gemprophit_array.mu_propagated_nME3hits >= rangeME3hits[0]) & (gemprophit_array.mu_propagated_nME3hits <= rangeME3hits[1])
     dict_of_masks["rangeME4hits_Mask"] =  (gemprophit_array.mu_propagated_nME4hits >= rangeME4hits[0]) & (gemprophit_array.mu_propagated_nME4hits <= rangeME4hits[1])
+    
+    strip_pitch_ge11= 2 * 5.07347 * np.pi /180 /384 
+    strip_pitch_ge21= 2*10.4045 * np.pi /180 /384
+    fiducialStrip= ak.where(gemprophit_array.mu_propagated_station<2, np.ceil(fiducialDPhi/strip_pitch_ge11), np.ceil(fiducialDPhi/strip_pitch_ge21))
+
     dict_of_masks["fiducialStrip_Mask"] = np.logical_and(  gemprophit_array.mu_propagated_strip >= (0+fiducialStrip) ,  gemprophit_array.mu_propagated_strip <= (384-fiducialStrip))
     dict_of_masks["fiducialY_Mask"] = np.logical_and(  gemprophit_array.mu_propagatedLoc_y >= (gemprophit_array.mu_propagated_etaP_boundary_minY + fiducialY),  gemprophit_array.mu_propagatedLoc_y <= (gemprophit_array.mu_propagated_etaP_boundary_maxY - fiducialY) )
     
