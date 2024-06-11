@@ -11,11 +11,9 @@ from Utils import OUTPUT_PATH, PHPINDEX_FILE
 import time
 
 
-## new color map = viridis and the color for (0,1/256) is forced to be White
-viridis = cm.get_cmap('viridis', 256)
-newcolors = viridis(np.linspace(0, 1, 256))
-newcolors[:1, :] = np.array([1, 1, 1, 1]) # white
-newcmp = ListedColormap(newcolors)
+newcmp = cm.get_cmap('viridis', 256)
+## set color_under to white
+newcmp.set_under(np.array([1, 1, 1, 1]))
 
 ##### Parser
 parser = argparse.ArgumentParser(description="High Granularity Efficiency Plotter from ROOT file")
@@ -111,7 +109,7 @@ if __name__ == '__main__':
 
         pHist = sum(histsProphit[(histsProphit["Station"]==s) & (histsProphit["Region"]==r) & (histsProphit["Layer"]==l)]["histograms"][0])
         mHist = sum(histsMatchedhit[(histsProphit["Station"]==s) & (histsMatchedhit["Region"]==r) & (histsMatchedhit["Layer"]==l)]["histograms"][0])
-        efficiency = np.zeros_like(pHist)
+        efficiency = np.ones_like(pHist)*-1
         np.divide(mHist,pHist, out=efficiency, where=pHist>=NpropHitsCutOff)
 
         range_selection = (df_ranges["station"]==s) & (df_ranges["region"]==r) & (df_ranges["layer"]==l)
@@ -126,7 +124,9 @@ if __name__ == '__main__':
                 aspect='equal',
                 interpolation="nearest",
                 origin="lower",
-                cmap=newcmp
+                cmap=newcmp,
+                vmin = 0. if name == "efficiency" else 1, ## efficiency(hits) plot is white if <NpropHitsCutOff (<1) prophits in bin
+                vmax = 1. if name == "efficiency" else None
             )
     
             fig.subplots_adjust(right=0.85)
