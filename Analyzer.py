@@ -123,6 +123,8 @@ def main():
         pUnpack = list(set(pUnpack + ROOT_PropHitBranches)) # ensure that the branches to be stored are first unpacked from the ntuples && no duplicates in list
         
     HVmask_path = configuration.data_input["HVMask_path"]
+    apply_daq_mask =  configuration.data_input["apply_daq_mask"]
+
     files = [
         join(folder, file)
         for folder in configuration.data_input["folders"]
@@ -265,25 +267,26 @@ def main():
         DAQMaskedVFAT_mask = calcDAQMaskedVFAT_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQMaskedVFAT"] = DAQMaskedVFAT_mask
         #print ("DAQMaskedVFAT_mask",  DAQMaskedVFAT_mask)
-        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQMaskedVFAT_mask, muonTrack_mask["overallGood_Mask"])
+ 
+        muonTrack_mask["overallGood_Mask"] = ak.where((input_par["gemprophit_array"].mu_propagated_station<2 & apply_daq_mask), muonTrack_mask["overallGood_Mask"] & DAQMaskedVFAT_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating VFAT DAQ mask")
 
         logger.debug(f" Calculating selection mask on VFAT DAQ missing")
         DAQMissingVFAT_mask = calcDAQMissingVFAT_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQMissingVFAT"] = DAQMissingVFAT_mask
-        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQMissingVFAT_mask, muonTrack_mask["overallGood_Mask"])
+        muonTrack_mask["overallGood_Mask"] = ak.where((input_par["gemprophit_array"].mu_propagated_station<2 & apply_daq_mask), muonTrack_mask["overallGood_Mask"] & DAQMissingVFAT_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating VFAT DAQ missing")
 
         logger.debug(f" Calculating selection mask on DAQ error")
         DAQError_mask = calcDAQError_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQError"] = DAQError_mask
-        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQError_mask, muonTrack_mask["overallGood_Mask"])
+        muonTrack_mask["overallGood_Mask"] = ak.where((input_par["gemprophit_array"].mu_propagated_station<2 & apply_daq_mask), muonTrack_mask["overallGood_Mask"] & DAQError_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating DAQ error mask")
 
         logger.debug(f" Calculating selection mask on DAQ enabled OH")
         DAQenabledOH_mask = calcDAQenabledOH_mask(gemPropHit, gemOHStatus)
         muonTrack_mask["DAQenabledOH"] = DAQenabledOH_mask
-        muonTrack_mask["overallGood_Mask"] = ak.where(input_par["gemprophit_array"].mu_propagated_station<2, muonTrack_mask["overallGood_Mask"] & DAQenabledOH_mask, muonTrack_mask["overallGood_Mask"])
+        muonTrack_mask["overallGood_Mask"] = ak.where((input_par["gemprophit_array"].mu_propagated_station<2 & apply_daq_mask), muonTrack_mask["overallGood_Mask"] & DAQenabledOH_mask, muonTrack_mask["overallGood_Mask"])
         heap_size(the_heap, "after calculating DAQ enabled OH")
         logger.debug(f" Calculating HV selection mask")
         if HVmask_path is not None:

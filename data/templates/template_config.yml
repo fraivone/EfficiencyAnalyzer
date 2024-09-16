@@ -2,6 +2,7 @@ data_input:
   folders: !!python/list []
   max_evts: !!python/int -1
   HVMask_path:  ""
+  apply_daq_mask: !!python/bool True
   runRange: !!python/list []
 parameters:
   rangePropPhi_Err: !!python/list [0.,0.005]
